@@ -19,16 +19,25 @@ const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5173";
 const REMATCH_MS = 10_000;
 
 const app = express();
-app.use(cors({ origin: CLIENT_URL }));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://buruuzam.web.app",
+  "https://buruuzam.firebaseapp.com"
+];
+
+app.use(cors({
+  origin: allowedOrigins
+}));
+
 app.get("/", (_req, res) => res.send("Wallz MN backend is running"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: CLIENT_URL,
-    methods: ["GET", "POST"],
-  },
+    origin: allowedOrigins,
+    methods: ["GET", "POST"]
+  }
 });
 
 io.on("connection", (socket) => {
