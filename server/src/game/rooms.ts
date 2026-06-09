@@ -1,10 +1,17 @@
 import type { GameState, PlayerId } from "../../../shared/types";
 import { createGame } from "./createGame";
 
+export type RematchState = {
+  requester: PlayerId;
+  timeout?: NodeJS.Timeout;
+  expiresAt: number;
+};
+
 export type Room = {
   id: string;
   game: GameState;
   sockets: Partial<Record<PlayerId, string>>;
+  rematch?: RematchState;
 };
 
 const rooms = new Map<string, Room>();
@@ -18,9 +25,14 @@ function makeRoomId(): string {
   return id;
 }
 
-export function createRoom(socketId: string): Room {
+function uniqueRoomId(): string {
   let id = makeRoomId();
   while (rooms.has(id)) id = makeRoomId();
+  return id;
+}
+
+export function createRoom(socketId: string): Room {
+  const id = uniqueRoomId();
 
   const room: Room = {
     id,
@@ -54,12 +66,36 @@ export function getRoom(roomId: string): Room | undefined {
   return rooms.get(roomId.toUpperCase());
 }
 
+export function otherPlayer(playerId: PlayerId): PlayerId {
+  return playerId === "P1" ? "P2" : "P1";
+}
+
+export function clearRematch(room: Room): void {
+  if (room.rematch?.timeout) clearTimeout(room.rematch.timeout);
+  room.rematch = undefined;
+}
+
+export function createRematchRoom(oldRoom: Room): Room {
+  clearRematch(oldRoom);
+  const id = uniqueRoomId();
+  const nextRoom: Room = {
+    id,
+    game: createGame(id, oldRoom.game.players),
+    sockets: { ...oldRoom.sockets },
+  };
+  nextRoom.game.status = "playing";
+  rooms.delete(oldRoom.id);
+  rooms.set(id, nextRoom);
+  return nextRoom;
+}
+
 export function removeSocketFromRooms(socketId: string): void {
   for (const [roomId, room] of rooms.entries()) {
     if (room.sockets.P1 === socketId) room.sockets.P1 = undefined;
     if (room.sockets.P2 === socketId) room.sockets.P2 = undefined;
 
     if (!room.sockets.P1 && !room.sockets.P2) {
+      clearRematch(room);
       rooms.delete(roomId);
     }
   }

@@ -10,6 +10,13 @@ export default function App() {
   const [game, setGame] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  function goHome() {
+    setRoomId(null);
+    setPlayerId(null);
+    setGame(null);
+    setError(null);
+  }
+
   useEffect(() => {
     socket.on("room-created", ({ roomId, playerId, game }) => {
       setRoomId(roomId);
@@ -19,6 +26,13 @@ export default function App() {
     });
 
     socket.on("game-started", ({ roomId, playerId, game }) => {
+      setRoomId(roomId);
+      setPlayerId(playerId);
+      setGame(game);
+      setError(null);
+    });
+
+    socket.on("rematch-started", ({ roomId, playerId, game }) => {
       setRoomId(roomId);
       setPlayerId(playerId);
       setGame(game);
@@ -41,6 +55,7 @@ export default function App() {
     return () => {
       socket.off("room-created");
       socket.off("game-started");
+      socket.off("rematch-started");
       socket.off("game-updated");
       socket.off("invalid-move");
       socket.off("game-over");
@@ -51,5 +66,5 @@ export default function App() {
     return <Home error={error} />;
   }
 
-  return <Game roomId={roomId} playerId={playerId} game={game} error={error} />;
+  return <Game roomId={roomId} playerId={playerId} game={game} error={error} onGoHome={goHome} />;
 }

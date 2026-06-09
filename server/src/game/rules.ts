@@ -1,4 +1,4 @@
-import type { GameState, MovePawnPayload, PlaceWallPayload, PlayerId, Position, Wall } from "../../../shared/types";
+import type { GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, Wall } from "../../../shared/types";
 import { BOARD_SIZE } from "../../../shared/constants";
 import { hasPathToGoal, isBlockedByWall } from "./pathfinding";
 
@@ -20,15 +20,67 @@ function switchTurn(game: GameState): void {
   game.currentTurn = otherPlayer(game.currentTurn);
 }
 
+function addMoveRecord(game: GameState, playerId: PlayerId, kind: "pawn" | "wall" | "giveup", text: string): void {
+  if (!game.moveHistory) game.moveHistory = [];
+  game.moveHistory.push({
+    turn: game.moveHistory.length + 1,
+    playerId,
+    kind,
+    text,
+  });
+}
+
+function positionToNotation(pos: Position): string {
+  const file = String.fromCharCode("a".charCodeAt(0) + pos.col);
+  const rank = BOARD_SIZE - pos.row;
+  return `${file}${rank}`;
+}
+
+function wallToNotation(wall: Wall): string {
+  return `${String.fromCharCode("a".charCodeAt(0) + wall.col)}${BOARD_SIZE - wall.row}${wall.orientation.toLowerCase()}`;
+}
+
+function finishGame(game: GameState, winner: PlayerId, reason: "goal" | "giveup"): void {
+  if (game.winner || game.status === "finished") return;
+
+  const loser = otherPlayer(winner);
+  const winnerBefore = game.players[winner].elo;
+  const loserBefore = game.players[loser].elo;
+  const eloDelta = 12;
+
+  game.players[winner].elo = winnerBefore + eloDelta;
+  game.players[loser].elo = Math.max(100, loserBefore - eloDelta);
+  game.players[winner].record.wins += 1;
+  game.players[loser].record.losses += 1;
+
+  game.winner = winner;
+  game.status = "finished";
+  game.result = {
+    reason,
+    winner,
+    loser,
+    elo: {
+      P1: {
+        before: game.players.P1.id === winner ? winnerBefore : loserBefore,
+        after: game.players.P1.elo,
+        delta: game.players.P1.id === winner ? eloDelta : -eloDelta,
+      },
+      P2: {
+        before: game.players.P2.id === winner ? winnerBefore : loserBefore,
+        after: game.players.P2.elo,
+        delta: game.players.P2.id === winner ? eloDelta : -eloDelta,
+      },
+    },
+  };
+}
+
 function checkWinner(game: GameState): void {
   if (game.players.P1.position.row === 0) {
-    game.winner = "P1";
-    game.status = "finished";
+    finishGame(game, "P1", "goal");
   }
 
   if (game.players.P2.position.row === BOARD_SIZE - 1) {
-    game.winner = "P2";
-    game.status = "finished";
+    finishGame(game, "P2", "goal");
   }
 }
 
@@ -111,6 +163,7 @@ export function applyPawnMove(game: GameState, payload: MovePawnPayload): RuleRe
   }
 
   game.players[playerId].position = to;
+  addMoveRecord(game, playerId, "pawn", positionToNotation(to));
   checkWinner(game);
   if (!game.winner) switchTurn(game);
 
@@ -162,7 +215,21 @@ export function applyWallPlacement(game: GameState, payload: PlaceWallPayload): 
   }
 
   game.players[playerId].wallsLeft -= 1;
+  addMoveRecord(game, playerId, "wall", wallToNotation(wall));
   switchTurn(game);
+
+  return { ok: true };
+}
+
+export function applyGiveUp(game: GameState, payload: GiveUpPayload): RuleResult {
+  const { playerId } = payload;
+
+  if (game.status !== "playing") return { ok: false, message: "Game is not playing." };
+  if (game.winner) return { ok: false, message: "Game already finished." };
+
+  const winner = otherPlayer(playerId);
+  finishGame(game, winner, "giveup");
+  addMoveRecord(game, playerId, "giveup", "give up");
 
   return { ok: true };
 }

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { GameState, Orientation, PlayerId, Position, Wall } from "../../../shared/types";
 
 type DragPoint = { x: number; y: number } | null;
@@ -30,12 +31,49 @@ function pawnAt(game: GameState, row: number, col: number): "P1" | "P2" | null {
   return null;
 }
 
+function playerColor(game: GameState, playerId: PlayerId | undefined): "blue" | "red" {
+  if (!playerId) return "blue";
+  return game.players[playerId].color;
+}
+
 function sameWall(a: Wall | null, b: Wall): boolean {
   return !!a && a.row === b.row && a.col === b.col && a.orientation === b.orientation;
 }
 
 function findWall(walls: Wall[], row: number, col: number, orientation: Orientation): Wall | null {
   return walls.find((wall) => wall.orientation === orientation && wall.row === row && wall.col === col) ?? null;
+}
+
+function wallsConflict(existing: Wall, next: Wall): boolean {
+  if (existing.orientation === "H" && next.orientation === "H") {
+    return existing.row === next.row && Math.abs(existing.col - next.col) <= 1;
+  }
+
+  if (existing.orientation === "V" && next.orientation === "V") {
+    return existing.col === next.col && Math.abs(existing.row - next.row) <= 1;
+  }
+
+  return existing.row === next.row && existing.col === next.col;
+}
+
+function wallInsideBoard(game: GameState, wall: Wall): boolean {
+  return wall.row >= 0 && wall.row < game.boardSize - 1 && wall.col >= 0 && wall.col < game.boardSize - 1;
+}
+
+function isWallPlacementMaybeLegal(game: GameState, wall: Wall, playerId: PlayerId): boolean {
+  if (game.players[playerId].wallsLeft <= 0) return false;
+  if (!wallInsideBoard(game, wall)) return false;
+  return !game.walls.some((existing) => wallsConflict(existing, wall));
+}
+
+function startLineColor(game: GameState, pos: Position): "blue" | "red" | null {
+  if (pos.row === game.boardSize - 1) return game.players.P1.color;
+  if (pos.row === 0) return game.players.P2.color;
+  return null;
+}
+
+function cssLength(n: number): string {
+  return `${n * 112}%`;
 }
 
 // H at (row, col) blocks vertical movement between row and row+1 at col and col+1.
@@ -159,10 +197,15 @@ function rotatePositionForPlayer(pos: Position, playerId: PlayerId, boardSize: n
 function rotateWallForPlayer(wall: Wall, playerId: PlayerId, boardSize: number): Wall {
   if (playerId === "P1") return wall;
   return {
+    ...wall,
     row: boardSize - 2 - wall.row,
     col: boardSize - 2 - wall.col,
     orientation: wall.orientation,
   };
+}
+
+function winnerColor(game: GameState): "blue" | "red" | null {
+  return game.winner ? game.players[game.winner].color : null;
 }
 
 function parseWallFromHotspotElement(el: Element | null): Wall | null {
@@ -188,6 +231,10 @@ const HOTSPOTS = [
 
 export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick }: Props) {
   const [previewWall, setPreviewWall] = useState<Wall | null>(null);
+  const previousPositions = useRef<Record<PlayerId, Position>>({
+    P1: { ...game.players.P1.position },
+    P2: { ...game.players.P2.position },
+  });
   const isMyTurn = game.status === "playing" && game.currentTurn === playerId;
 
   const legalMoves = useMemo(() => {
@@ -216,6 +263,13 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
     setPreviewWall(wall);
   }, [dragPoint, draggedWall, isMyTurn]);
 
+  useEffect(() => {
+    previousPositions.current = {
+      P1: { ...game.players.P1.position },
+      P2: { ...game.players.P2.position },
+    };
+  }, [game.players.P1.position.row, game.players.P1.position.col, game.players.P2.position.row, game.players.P2.position.col]);
+
   const cells = [];
 
   for (let displayRow = 0; displayRow < game.boardSize; displayRow += 1) {
@@ -224,15 +278,27 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
       const pawn = pawnAt(game, gamePos.row, gamePos.col);
       const isLegalMove = legalMoves.some((move) => move.row === gamePos.row && move.col === gamePos.col);
       const isMyPawn = pawn === playerId;
+      const pawnColor = playerColor(game, pawn ?? undefined);
+      const lineColor = startLineColor(game, gamePos);
       const hWall: Wall = { row: displayRow, col: displayCol, orientation: "H" };
       const vWall: Wall = { row: displayRow, col: displayCol, orientation: "V" };
       const hPlacedWall = findWall(displayWalls, displayRow, displayCol, "H");
       const vPlacedWall = findWall(displayWalls, displayRow, displayCol, "V");
+      const hActualWall = rotateWallForPlayer(hWall, playerId, game.boardSize);
+      const vActualWall = rotateWallForPlayer(vWall, playerId, game.boardSize);
+      const hPreviewValid = isWallPlacementMaybeLegal(game, hActualWall, playerId);
+      const vPreviewValid = isWallPlacementMaybeLegal(game, vActualWall, playerId);
+      const previousGamePos = pawn ? previousPositions.current[pawn] : null;
+      const previousDisplayPos = previousGamePos ? rotatePositionForPlayer(previousGamePos, playerId, game.boardSize) : null;
+      const pawnMoved = !!previousDisplayPos && (previousDisplayPos.row !== displayRow || previousDisplayPos.col !== displayCol);
+      const pawnStyle = pawnMoved
+        ? ({ "--slide-x": cssLength(previousDisplayPos.col - displayCol), "--slide-y": cssLength(previousDisplayPos.row - displayRow) } as CSSProperties)
+        : undefined;
 
       cells.push(
         <div key={`${displayRow}-${displayCol}`} className="cell-wrap">
           <div
-            className={`cell ${isLegalMove ? "legal-move" : ""} ${isMyPawn ? "my-pawn-cell" : ""}`}
+            className={`cell ${isLegalMove ? "legal-move" : ""} ${isMyPawn ? "my-pawn-cell" : ""} ${lineColor ? `start-line start-line-${lineColor}` : ""}`}
             onClick={() => {
               if (!isLegalMove || !isMyTurn) return;
               onCellClick(gamePos);
@@ -241,20 +307,20 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
             aria-label={`row ${gamePos.row}, col ${gamePos.col}`}
           >
             {isLegalMove && <span className="move-dot" />}
-            {pawn && <span className={`pawn ${pawn.toLowerCase()} ${pawn === playerId ? "you" : "opponent"}`} />}
+            {pawn && <span className={`pawn ${pawn.toLowerCase()} ${pawnColor} ${isMyPawn ? "my-pawn" : "enemy-pawn"} ${pawnMoved ? "pawn-sliding" : ""}`} style={pawnStyle} />}
           </div>
 
           {displayRow < game.boardSize - 1 && displayCol < game.boardSize - 1 && hPlacedWall && (
-            <div className={`wall-piece horizontal placed ${hPlacedWall.owner === playerId ? "you-wall" : "opponent-wall"}`} />
+            <div className={`wall-piece horizontal placed ${playerColor(game, hPlacedWall.owner)}-wall`} />
           )}
           {displayRow < game.boardSize - 1 && displayCol < game.boardSize - 1 && vPlacedWall && (
-            <div className={`wall-piece vertical placed ${vPlacedWall.owner === playerId ? "you-wall" : "opponent-wall"}`} />
+            <div className={`wall-piece vertical placed ${playerColor(game, vPlacedWall.owner)}-wall`} />
           )}
           {displayRow < game.boardSize - 1 && displayCol < game.boardSize - 1 && sameWall(previewWall, hWall) && isMyTurn && (
-            <div className="wall-piece horizontal preview" />
+            <div className={`wall-piece horizontal preview ${game.players[playerId].color}-preview ${hPreviewValid ? "valid-preview" : "invalid-preview"}`} />
           )}
           {displayRow < game.boardSize - 1 && displayCol < game.boardSize - 1 && sameWall(previewWall, vWall) && isMyTurn && (
-            <div className="wall-piece vertical preview" />
+            <div className={`wall-piece vertical preview ${game.players[playerId].color}-preview ${vPreviewValid ? "valid-preview" : "invalid-preview"}`} />
           )}
 
           {HOTSPOTS.map((hotspot) => {
@@ -288,6 +354,7 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
                 onClick={(event) => {
                   event.stopPropagation();
                   if (!isMyTurn || draggedWall) return;
+                  if (!isWallPlacementMaybeLegal(game, actualWall, playerId)) return;
                   onWallClick(actualWall);
                 }}
                 disabled={!isMyTurn}
@@ -301,5 +368,7 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
     }
   }
 
-  return <section className={`board ${isMyTurn ? "my-turn" : "not-my-turn"}`}>{cells}</section>;
+  const winColor = winnerColor(game);
+
+  return <section className={`board ${isMyTurn ? "my-turn" : "not-my-turn"} player-color-${game.players[playerId].color} ${winColor ? `winner-${winColor}` : ""}`}>{cells}</section>;
 }
