@@ -1334,117 +1334,180 @@ body {
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45), 0 0 56px rgba(255, 94, 120, 0.23), inset 0 0 0 6px rgba(255, 94, 120, 0.08) !important;
 }
 
-/* 2026 mobile order fix: on phone/narrow screens, board first, wall drag tray directly under board. */
-@media (max-width: 1100px) {
-  .playing-game {
-    padding-top: 8px;
-    padding-bottom: 18px;
-  }
+/* Result / rematch overlay - restored after visual polish patches */
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 20%, rgba(255, 247, 199, 0.08), rgba(0, 0, 0, 0.72) 48%, rgba(0, 0, 0, 0.9));
+  backdrop-filter: blur(12px);
+  animation: resultFadeIn 260ms ease both;
+}
 
-  .playing-game .responsive-play-layout,
-  .playing-game .play-layout,
-  .responsive-play-layout,
-  .play-layout {
-    width: 100%;
-    display: flex !important;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-  }
+.result-overlay.win {
+  background: radial-gradient(circle at 50% 20%, rgba(37, 218, 207, 0.24), rgba(0, 0, 0, 0.76) 50%, rgba(0, 0, 0, 0.92));
+}
 
-  .playing-game .board,
-  .board {
-    order: 1;
-    width: min(64vh, 94vw, 540px);
-    margin: 0 auto;
-  }
+.result-overlay.lose {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 91, 128, 0.24), rgba(0, 0, 0, 0.76) 50%, rgba(0, 0, 0, 0.92));
+}
 
-  .playing-game .side-panel,
-  .side-panel,
-  .compact-side-panel {
-    order: 2;
-    width: min(94vw, 540px);
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
+.result-card {
+  width: min(720px, 94vw);
+  border: 1px solid rgba(255, 245, 209, 0.16);
+  border-radius: 32px;
+  padding: clamp(22px, 4vw, 42px);
+  background: linear-gradient(145deg, rgba(19, 18, 15, 0.94), rgba(10, 9, 8, 0.96));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+  color: #fff3c8;
+  animation: resultPop 320ms cubic-bezier(.2,1.25,.4,1) both;
+}
 
-  /* Most important: wall controls must appear immediately under the map on mobile. */
-  .playing-game .wall-tray,
-  .side-panel .wall-tray,
-  .compact-wall-tray {
-    order: 1 !important;
-    position: static !important;
-    margin-top: 0;
-  }
+.result-versus {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+}
 
-  .side-panel .turn-card,
-  .compact-side-panel .turn-card {
-    order: 2 !important;
-  }
+.result-player {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
 
-  .side-panel .moves-panel {
-    order: 3 !important;
-  }
+.result-avatar {
+  width: 78px;
+  height: 78px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  border: 2px solid currentColor;
+  box-shadow: 0 0 30px currentColor;
+}
 
-  .side-panel .chat-panel {
-    order: 4 !important;
-  }
+.result-avatar.blue { color: #2ee6dc; background: rgba(46, 230, 220, 0.12); }
+.result-avatar.red { color: #ff5b80; background: rgba(255, 91, 128, 0.12); }
 
-  .side-panel .action-row {
-    order: 5 !important;
-  }
+.result-title-block {
+  text-align: center;
+  min-width: 190px;
+}
+
+.result-title-block p {
+  margin: 0 0 6px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-weight: 900;
+  color: #fff8d8;
+}
+
+.result-title-block h2 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 56px);
+  line-height: 1;
+}
+
+.elo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 28px 0;
+}
+
+.elo-grid div {
+  border: 1px solid rgba(255, 245, 209, 0.11);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.elo-grid span {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 243, 200, 0.62);
+  font-size: 12px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.rematch-toast {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(46, 230, 220, 0.4);
+  background: rgba(46, 230, 220, 0.1);
+  color: #fff8d8;
+}
+
+.rematch-actions,
+.result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.rematch-actions button,
+.rematch-button,
+.home-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 22px;
+  font-weight: 900;
+  cursor: pointer;
+  color: #120f0c;
+  background: linear-gradient(90deg, #2ee6dc, #fff0a4);
+  box-shadow: 0 10px 30px rgba(46, 230, 220, 0.18);
+}
+
+.rematch-actions button:last-child,
+.home-button {
+  color: #fff3c8;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 245, 209, 0.13);
+}
+
+.rematch-button.waiting,
+.rematch-button.declined,
+.rematch-button:disabled {
+  opacity: .75;
+  cursor: default;
+}
+
+.auto-home-text {
+  margin: 14px 0 0;
+  text-align: center;
+  color: rgba(255, 243, 200, 0.68);
+}
+
+@keyframes resultFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes resultPop {
+  from { opacity: 0; transform: translateY(18px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @media (max-width: 720px) {
-  .playing-game {
-    padding: 6px 6px 14px;
+  .result-versus {
+    grid-template-columns: 1fr;
   }
 
-  .playing-game .board,
-  .board {
-    width: min(60vh, 96vw, 500px);
+  .result-title-block {
+    order: -1;
   }
 
-  .compact-wall-tray {
-    padding: 10px;
-  }
-
-  .compact-wall-tray p {
-    margin-bottom: 8px;
-    font-size: 11px;
-    line-height: 1.35;
-  }
-
-  .wall-tray-buttons {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .wall-card {
-    min-width: 0;
-    min-height: 58px;
-    padding: 9px 8px;
-    font-size: 12px;
-    border-radius: 16px;
-  }
-
-  .turn-card,
-  .compact-panel,
-  .wall-tray {
-    border-radius: 18px;
-  }
-}
-
-@media (max-width: 420px) {
-  .playing-game .board,
-  .board {
-    width: min(56vh, 96vw, 460px);
-  }
-
-  .wall-card span:last-child {
-    font-size: 11px;
+  .elo-grid {
+    grid-template-columns: 1fr;
   }
 }
