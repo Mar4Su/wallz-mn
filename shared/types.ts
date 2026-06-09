@@ -10,6 +10,7 @@ export type Wall = {
   row: number;
   col: number;
   orientation: Orientation;
+  owner?: PlayerId;
 };
 
 export type PlayerState = {

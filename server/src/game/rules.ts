@@ -1,6 +1,8 @@
-import type { GameState, MovePawnPayload, PlaceWallPayload, Position, Wall } from "../../../shared/types";
+import type { GameState, MovePawnPayload, PlaceWallPayload, PlayerId, Position, Wall } from "../../../shared/types";
 import { BOARD_SIZE } from "../../../shared/constants";
 import { hasPathToGoal, isBlockedByWall } from "./pathfinding";
+
+type RuleResult = { ok: boolean; message?: string };
 
 function samePosition(a: Position, b: Position): boolean {
   return a.row === b.row && a.col === b.col;
@@ -10,16 +12,12 @@ function isInsideBoard(pos: Position): boolean {
   return pos.row >= 0 && pos.row < BOARD_SIZE && pos.col >= 0 && pos.col < BOARD_SIZE;
 }
 
-function isAdjacent(a: Position, b: Position): boolean {
-  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
-}
-
-function otherPlayer(playerId: "P1" | "P2"): "P1" | "P2" {
+function otherPlayer(playerId: PlayerId): PlayerId {
   return playerId === "P1" ? "P2" : "P1";
 }
 
 function switchTurn(game: GameState): void {
-  game.currentTurn = game.currentTurn === "P1" ? "P2" : "P1";
+  game.currentTurn = otherPlayer(game.currentTurn);
 }
 
 function checkWinner(game: GameState): void {
@@ -27,13 +25,77 @@ function checkWinner(game: GameState): void {
     game.winner = "P1";
     game.status = "finished";
   }
+
   if (game.players.P2.position.row === BOARD_SIZE - 1) {
     game.winner = "P2";
     game.status = "finished";
   }
 }
 
-export function applyPawnMove(game: GameState, payload: MovePawnPayload): { ok: boolean; message?: string } {
+function addIfValid(moves: Position[], pos: Position): void {
+  if (isInsideBoard(pos) && !moves.some((move) => samePosition(move, pos))) {
+    moves.push(pos);
+  }
+}
+
+function canStep(from: Position, to: Position, walls: Wall[]): boolean {
+  const distance = Math.abs(from.row - to.row) + Math.abs(from.col - to.col);
+  return distance === 1 && isInsideBoard(to) && !isBlockedByWall(from, to, walls);
+}
+
+export function getLegalPawnMoves(game: GameState, playerId: PlayerId): Position[] {
+  const from = game.players[playerId].position;
+  const opponent = game.players[otherPlayer(playerId)].position;
+  const moves: Position[] = [];
+
+  const directions = [
+    { row: -1, col: 0 },
+    { row: 1, col: 0 },
+    { row: 0, col: -1 },
+    { row: 0, col: 1 },
+  ];
+
+  for (const dir of directions) {
+    const next = { row: from.row + dir.row, col: from.col + dir.col };
+
+    if (!canStep(from, next, game.walls)) continue;
+
+    // Normal move if the opponent is not in that adjacent square.
+    if (!samePosition(next, opponent)) {
+      addIfValid(moves, next);
+      continue;
+    }
+
+    // Opponent is directly next to us. Try to jump over them.
+    const behindOpponent = { row: opponent.row + dir.row, col: opponent.col + dir.col };
+    if (canStep(opponent, behindOpponent, game.walls)) {
+      addIfValid(moves, behindOpponent);
+      continue;
+    }
+
+    // If straight jump is blocked, diagonal moves around the opponent are allowed.
+    const diagonalDirections = dir.row !== 0
+      ? [
+          { row: 0, col: -1 },
+          { row: 0, col: 1 },
+        ]
+      : [
+          { row: -1, col: 0 },
+          { row: 1, col: 0 },
+        ];
+
+    for (const diagonal of diagonalDirections) {
+      const diagonalMove = { row: opponent.row + diagonal.row, col: opponent.col + diagonal.col };
+      if (canStep(opponent, diagonalMove, game.walls)) {
+        addIfValid(moves, diagonalMove);
+      }
+    }
+  }
+
+  return moves;
+}
+
+export function applyPawnMove(game: GameState, payload: MovePawnPayload): RuleResult {
   const { playerId, to } = payload;
 
   if (game.status !== "playing") return { ok: false, message: "Game is not playing." };
@@ -41,15 +103,12 @@ export function applyPawnMove(game: GameState, payload: MovePawnPayload): { ok: 
   if (game.currentTurn !== playerId) return { ok: false, message: "Not your turn." };
   if (!isInsideBoard(to)) return { ok: false, message: "Move is outside board." };
 
-  const from = game.players[playerId].position;
-  const opponent = game.players[otherPlayer(playerId)].position;
+  const legalMoves = getLegalPawnMoves(game, playerId);
+  const isLegal = legalMoves.some((move) => samePosition(move, to));
 
-  if (!isAdjacent(from, to)) {
-    return { ok: false, message: "For MVP, only normal one-step movement is implemented. Add jump rules later." };
+  if (!isLegal) {
+    return { ok: false, message: "Illegal pawn move." };
   }
-
-  if (samePosition(to, opponent)) return { ok: false, message: "Cannot move onto opponent." };
-  if (isBlockedByWall(from, to, game.walls)) return { ok: false, message: "Wall blocks this move." };
 
   game.players[playerId].position = to;
   checkWinner(game);
@@ -62,22 +121,22 @@ function wallInsideBoard(wall: Wall): boolean {
   return wall.row >= 0 && wall.row < BOARD_SIZE - 1 && wall.col >= 0 && wall.col < BOARD_SIZE - 1;
 }
 
-function sameWall(a: Wall, b: Wall): boolean {
-  return a.row === b.row && a.col === b.col && a.orientation === b.orientation;
-}
-
-function overlapsOrCrosses(existing: Wall, next: Wall): boolean {
-  if (sameWall(existing, next)) return true;
-
-  // Prevent exact crossing at same anchor point.
-  if (existing.row === next.row && existing.col === next.col && existing.orientation !== next.orientation) {
-    return true;
+function wallsConflict(existing: Wall, next: Wall): boolean {
+  // Same horizontal wall line: neighbor anchors overlap one wall segment.
+  if (existing.orientation === "H" && next.orientation === "H") {
+    return existing.row === next.row && Math.abs(existing.col - next.col) <= 1;
   }
 
-  return false;
+  // Same vertical wall line: neighbor anchors overlap one wall segment.
+  if (existing.orientation === "V" && next.orientation === "V") {
+    return existing.col === next.col && Math.abs(existing.row - next.row) <= 1;
+  }
+
+  // Different orientation at the same anchor creates a crossing wall.
+  return existing.row === next.row && existing.col === next.col;
 }
 
-export function applyWallPlacement(game: GameState, payload: PlaceWallPayload): { ok: boolean; message?: string } {
+export function applyWallPlacement(game: GameState, payload: PlaceWallPayload): RuleResult {
   const { playerId, wall } = payload;
 
   if (game.status !== "playing") return { ok: false, message: "Game is not playing." };
@@ -87,12 +146,12 @@ export function applyWallPlacement(game: GameState, payload: PlaceWallPayload): 
   if (!wallInsideBoard(wall)) return { ok: false, message: "Wall is outside valid wall area." };
 
   for (const existing of game.walls) {
-    if (overlapsOrCrosses(existing, wall)) {
+    if (wallsConflict(existing, wall)) {
       return { ok: false, message: "Wall overlaps or crosses another wall." };
     }
   }
 
-  game.walls.push(wall);
+  game.walls.push({ ...wall, owner: playerId });
 
   const p1HasPath = hasPathToGoal(game, "P1");
   const p2HasPath = hasPathToGoal(game, "P2");
