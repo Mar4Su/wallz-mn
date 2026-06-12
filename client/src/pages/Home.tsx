@@ -131,6 +131,26 @@ function HomeArena3D() {
   );
 }
 
+function XahaWordmark() {
+  return (
+    <svg className="xaha-wordmark" viewBox="0 0 386 112" role="img" aria-label="XAHA">
+      <title>XAHA</title>
+      <g className="xaha-wordmark-lines" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path className="xaha-line" pathLength="1" d="M18 20L82 92" />
+        <path className="xaha-line" pathLength="1" d="M82 20L18 92" />
+        <path className="xaha-line" pathLength="1" d="M112 92L148 20L184 92" />
+        <path className="xaha-line" pathLength="1" d="M126 66H170" />
+        <path className="xaha-line" pathLength="1" d="M216 20V92" />
+        <path className="xaha-line" pathLength="1" d="M286 20V92" />
+        <path className="xaha-line" pathLength="1" d="M216 56H286" />
+        <path className="xaha-line" pathLength="1" d="M316 92L342 20" />
+        <path className="xaha-line" pathLength="1" d="M342 20L368 92" />
+        <path className="xaha-line" pathLength="1" d="M326 66H358" />
+      </g>
+    </svg>
+  );
+}
+
 type PlayModeCardProps = {
   label: string;
   subtitle: string;
@@ -431,7 +451,8 @@ export default function Home({ error }: Props) {
           <div className="home-title-row">
             <div>
               <p className="eyebrow">Live strategy arena</p>
-              <h1>{t.title}</h1>
+              <h1 className="sr-only">{t.title}</h1>
+              <XahaWordmark />
               <p>{t.subtitle}</p>
             </div>
             <div className="season-pill">
