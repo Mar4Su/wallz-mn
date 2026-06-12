@@ -18,6 +18,7 @@ import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../../../shared/timeCont
 
 type Props = {
   error: string | null;
+  onGoProfile: () => void;
 };
 
 type PlayMode = "ranked" | "casual" | "computer" | "friend";
@@ -398,7 +399,7 @@ function PlayModeCard({ label, subtitle, meta, variant, onClick }: PlayModeCardP
   );
 }
 
-export default function Home({ error }: Props) {
+export default function Home({ error, onGoProfile }: Props) {
   const [roomCode, setRoomCode] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -758,7 +759,7 @@ export default function Home({ error }: Props) {
                 <>
                   <button onClick={() => {
                     setAccountOpen(false);
-                    document.querySelector(".profile-card-v2")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    onGoProfile();
                   }}>{homeText.profile}</button>
                   <button onClick={() => void logout()}>{homeText.logout}</button>
                 </>

@@ -3763,6 +3763,218 @@ body::before {
   background: linear-gradient(135deg, #6affef, #ffd36a);
 }
 
+.profile-page {
+  min-height: 100vh;
+  padding: 10px;
+  color: #fff6d8;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(255, 190, 28, 0.08), transparent 26%),
+    radial-gradient(circle at 82% 18%, rgba(53, 232, 214, 0.08), transparent 28%),
+    #070704;
+}
+
+.profile-topbar {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  background: rgba(16, 18, 15, 0.8);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.profile-topbar button {
+  border-radius: 999px;
+  color: #f8fbff;
+  background: rgba(255,255,255,0.06);
+}
+
+.profile-hero-bar {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 26px;
+  padding: 26px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(90deg, rgba(34, 22, 26, 0.92), rgba(24, 18, 20, 0.9)),
+    rgba(0,0,0,0.72);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.42);
+}
+
+.profile-stat-left {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.profile-stat-left > :first-child {
+  align-self: start;
+}
+
+.profile-stat-left h1 {
+  margin: 14px 0 0;
+  color: #ffbe1c;
+  font-size: 52px;
+  line-height: 0.95;
+}
+
+.profile-stat-left p {
+  margin: 0;
+  color: #33ff8b;
+  font-weight: 900;
+}
+
+.profile-stat-left p .loss {
+  color: #ff4d68;
+}
+
+.profile-rank-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: #c4aa73;
+  font-size: 12px;
+}
+
+.profile-rank-line span {
+  color: #ffd36a;
+  font-weight: 1000;
+}
+
+.profile-rank-line em {
+  margin-left: auto;
+  color: #d7c6a0;
+  font-style: normal;
+}
+
+.profile-winbar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+
+.profile-winbar span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #33ff8b, #6affef);
+}
+
+.profile-form-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.profile-form-row span {
+  margin-right: 4px;
+  color: #7f6957;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+.profile-form-row b {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.profile-form-row b.win {
+  color: #052114;
+  background: #35e878;
+}
+
+.profile-form-row b.loss {
+  color: #ffe9ed;
+  background: #7a2935;
+}
+
+.profile-history-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.profile-history-row {
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 48px 26px minmax(0, 1fr) 70px 76px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.profile-history-row strong {
+  font-size: 11px;
+}
+
+.profile-history-row.win strong {
+  color: #33ff8b;
+}
+
+.profile-history-row.loss strong {
+  color: #ff6078;
+}
+
+.profile-history-row button {
+  min-width: 0;
+  min-height: 28px;
+  border-radius: 10px;
+  color: #fff6d8;
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-history-row em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 1000;
+  text-align: right;
+}
+
+.profile-edit-modal input {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 0 14px;
+}
+
+.delete-account-button {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  color: #fff2f4;
+  background: linear-gradient(135deg, #ff496f, #8e1028);
+}
+
+@media (max-width: 820px) {
+  .profile-hero-bar {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .profile-history-row {
+    grid-template-columns: 44px minmax(0, 1fr) 64px;
+  }
+
+  .profile-history-row .mini-avatar,
+  .profile-history-row em {
+    display: none;
+  }
+}
+
 .side-leaderboard-list {
   max-height: 560px;
   display: grid;

@@ -3,6 +3,7 @@ import type { ClientPlayerProfile, GameState, PlayerId } from "../../shared/type
 import { socket } from "./socket";
 import Home from "./pages/Home";
 import Game from "./pages/Game";
+import ProfilePage from "./pages/ProfilePage";
 import { useAuth } from "./auth/AuthContext";
 
 type SavedRoomSeat = {
@@ -14,6 +15,11 @@ const ACTIVE_ROOM_KEY = "wallz.activeRoom";
 
 function roomIdFromPath(): string | null {
   const match = window.location.pathname.match(/^\/rooms\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function userIdFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/user\/([^/]+)$/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -41,6 +47,7 @@ export default function App() {
   const [playerId, setPlayerId] = useState<PlayerId | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [path, setPath] = useState(window.location.pathname);
   const attemptedRoomRef = useRef<string | null>(null);
 
   function playerProfilePayload(): ClientPlayerProfile | undefined {
@@ -64,7 +71,21 @@ export default function App() {
     setPlayerId(null);
     setGame(null);
     setError(null);
+    setPath("/");
   }
+
+  function goProfile() {
+    window.history.pushState(null, "", "/profile");
+    setPath("/profile");
+  }
+
+  useEffect(() => {
+    function onPopState() {
+      setPath(window.location.pathname);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     socket.on("room-created", ({ roomId, playerId, game }) => {
@@ -157,7 +178,10 @@ export default function App() {
   }, [authReady, currentUser, profile, roomId]);
 
   if (!roomId || !playerId || !game) {
-    return <Home error={error} />;
+    if (path === "/profile") return <ProfilePage mode="own" onGoHome={goHome} />;
+    const publicUserId = userIdFromPath();
+    if (publicUserId) return <ProfilePage mode="public" identifier={publicUserId} onGoHome={goHome} />;
+    return <Home error={error} onGoProfile={goProfile} />;
   }
 
   return <Game roomId={roomId} playerId={playerId} game={game} error={error} onGoHome={goHome} />;

@@ -24,6 +24,7 @@ import {
 import { applyGiveUp, applyPawnMove, applyTurnTimeout, applyWallPlacement, finishGame, getLegalPawnMoves } from "./game/rules";
 import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, TimeControlId, Wall } from "../../shared/types";
 import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getLeaderboardRank, getRankedMatch, getRankedStatus, getUserMatchHistory, verifyBearerToken } from "./ranked";
+import { deleteOwnAccount, getPublicProfile, updateOwnProfile } from "./profiles";
 import { resolveTimeControl } from "../../shared/timeControls";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -291,6 +292,45 @@ app.get("/me/history", async (req, res) => {
     res.json({ matches: await getUserMatchHistory(decoded.uid, limit) });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Could not load match history." });
+  }
+});
+
+app.get("/users/:identifier", async (req, res) => {
+  try {
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 20;
+    res.json(await getPublicProfile(req.params.identifier, limit));
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : "Profile not found." });
+  }
+});
+
+app.get("/me/profile", async (req, res) => {
+  try {
+    const decoded = await verifyBearerToken(req.headers.authorization);
+    res.json(await getPublicProfile(decoded.uid, 20));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Could not load profile." });
+  }
+});
+
+app.patch("/me/profile", async (req, res) => {
+  try {
+    const decoded = await verifyBearerToken(req.headers.authorization);
+    const { publicId, avatarId } = req.body as { publicId?: string; avatarId?: string };
+    res.json(await updateOwnProfile(decoded, { publicId, avatarId }));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Could not update profile." });
+  }
+});
+
+app.post("/me/delete", async (req, res) => {
+  try {
+    const decoded = await verifyBearerToken(req.headers.authorization);
+    const { confirmation } = req.body as { confirmation?: string };
+    if (confirmation !== "DELETE") throw new Error("Type DELETE to confirm account deletion.");
+    res.json(await deleteOwnAccount(decoded));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Could not delete account." });
   }
 });
 
