@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/server/src/index.js"
   },
   "dependencies": {
     "cors": "latest",
+    "dotenv": "^17.4.2",
     "express": "latest",
+    "firebase-admin": "^14.0.0",
     "socket.io": "latest"
   },
   "devDependencies": {

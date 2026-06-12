@@ -1,7 +1,8 @@
 export type PlayerId = "P1" | "P2";
 export type Orientation = "H" | "V";
 export type PlayerColor = "blue" | "red";
-export type MoveKind = "pawn" | "wall" | "giveup";
+export type MoveKind = "pawn" | "wall" | "giveup" | "timeout";
+export type AiDifficulty = "easy" | "normal" | "hard" | "pro";
 
 export type Position = {
   row: number;
@@ -22,13 +23,28 @@ export type PlayerRecord = {
 
 export type PlayerState = {
   id: PlayerId;
+  uid?: string;
   color: PlayerColor;
   position: Position;
   wallsLeft: number;
   name: string;
   avatar: string;
+  avatarId?: string;
+  profileColor?: string;
+  publicId?: string;
   elo: number;
   record: PlayerRecord;
+};
+
+export type ClientPlayerProfile = {
+  uid?: string;
+  displayName?: string;
+  publicId?: string;
+  avatarId?: string;
+  profileColor?: string;
+  elo?: number;
+  wins?: number;
+  losses?: number;
 };
 
 export type MoveRecord = {
@@ -38,6 +54,15 @@ export type MoveRecord = {
   text: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  roomId: string;
+  playerId: PlayerId;
+  senderName: string;
+  text: string;
+  createdAt: number;
+};
+
 export type EloChange = {
   before: number;
   after: number;
@@ -45,7 +70,7 @@ export type EloChange = {
 };
 
 export type GameResult = {
-  reason: "goal" | "giveup";
+  reason: "goal" | "giveup" | "abandoned" | "timeout";
   winner: PlayerId;
   loser: PlayerId;
   elo: Record<PlayerId, EloChange>;
@@ -55,6 +80,9 @@ export type GameStatus = "waiting" | "playing" | "finished";
 
 export type GameState = {
   roomId: string;
+  matchId?: string;
+  matchType?: "friend" | "ranked" | "casual" | "ai";
+  aiDifficulty?: AiDifficulty;
   boardSize: 9;
   status: GameStatus;
   currentTurn: PlayerId;
@@ -64,8 +92,16 @@ export type GameState = {
   };
   walls: Wall[];
   moveHistory: MoveRecord[];
+  chatMessages?: ChatMessage[];
   winner: PlayerId | null;
   result?: GameResult;
+  clocks?: {
+    totalMs: Record<PlayerId, number>;
+    turnStartedAt: number;
+    turnEndsAt: number;
+    disconnectedPlayer?: PlayerId;
+    disconnectEndsAt?: number;
+  };
 };
 
 export type MovePawnPayload = {
@@ -88,4 +124,10 @@ export type GiveUpPayload = {
 export type RematchPayload = {
   roomId: string;
   playerId: PlayerId;
+};
+
+export type SendChatMessagePayload = {
+  roomId: string;
+  playerId: PlayerId;
+  text: string;
 };

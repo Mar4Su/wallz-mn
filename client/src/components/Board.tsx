@@ -231,6 +231,7 @@ const HOTSPOTS = [
 
 export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick }: Props) {
   const [previewWall, setPreviewWall] = useState<Wall | null>(null);
+  const wallHotspotPointerType = useRef<string | null>(null);
   const previousPositions = useRef<Record<PlayerId, Position>>({
     P1: { ...game.players.P1.position },
     P2: { ...game.players.P2.position },
@@ -337,6 +338,9 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
                 data-wall-row={actualWall.row}
                 data-wall-col={actualWall.col}
                 data-orientation={actualWall.orientation}
+                onPointerDown={(event) => {
+                  wallHotspotPointerType.current = event.pointerType;
+                }}
                 onMouseEnter={() => {
                   if (!isMyTurn || draggedWall) return;
                   setPreviewWall(displayWall);
@@ -352,6 +356,13 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
                   if (!draggedWall) setPreviewWall(null);
                 }}
                 onClick={(event) => {
+                  const pointerType = wallHotspotPointerType.current;
+                  wallHotspotPointerType.current = null;
+                  if (pointerType && pointerType !== "mouse") {
+                    if (!isLegalMove || !isMyTurn) return;
+                    onCellClick(gamePos);
+                    return;
+                  }
                   event.stopPropagation();
                   if (!isMyTurn || draggedWall) return;
                   if (!isWallPlacementMaybeLegal(game, actualWall, playerId)) return;
@@ -370,5 +381,5 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
 
   const winColor = winnerColor(game);
 
-  return <section className={`board ${isMyTurn ? "my-turn" : "not-my-turn"} player-color-${game.players[playerId].color} ${winColor ? `winner-${winColor}` : ""}`}>{cells}</section>;
+  return <section className={`board ${draggedWall ? "wall-dragging" : ""} ${isMyTurn ? "my-turn" : "not-my-turn"} player-color-${game.players[playerId].color} ${winColor ? `winner-${winColor}` : ""}`}>{cells}</section>;
 }

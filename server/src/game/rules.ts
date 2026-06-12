@@ -20,7 +20,7 @@ function switchTurn(game: GameState): void {
   game.currentTurn = otherPlayer(game.currentTurn);
 }
 
-function addMoveRecord(game: GameState, playerId: PlayerId, kind: "pawn" | "wall" | "giveup", text: string): void {
+function addMoveRecord(game: GameState, playerId: PlayerId, kind: "pawn" | "wall" | "giveup" | "timeout", text: string): void {
   if (!game.moveHistory) game.moveHistory = [];
   game.moveHistory.push({
     turn: game.moveHistory.length + 1,
@@ -40,7 +40,7 @@ function wallToNotation(wall: Wall): string {
   return `${String.fromCharCode("a".charCodeAt(0) + wall.col)}${BOARD_SIZE - wall.row}${wall.orientation.toLowerCase()}`;
 }
 
-function finishGame(game: GameState, winner: PlayerId, reason: "goal" | "giveup"): void {
+export function finishGame(game: GameState, winner: PlayerId, reason: "goal" | "giveup" | "abandoned" | "timeout"): void {
   if (game.winner || game.status === "finished") return;
 
   const loser = otherPlayer(winner);
@@ -72,6 +72,16 @@ function finishGame(game: GameState, winner: PlayerId, reason: "goal" | "giveup"
       },
     },
   };
+}
+
+export function applyTurnTimeout(game: GameState, playerId: PlayerId): RuleResult {
+  if (game.status !== "playing") return { ok: false, message: "Game is not playing." };
+  if (game.winner) return { ok: false, message: "Game already finished." };
+  if (game.currentTurn !== playerId) return { ok: false, message: "Not this player's turn." };
+
+  addMoveRecord(game, playerId, "timeout", "turn timeout");
+  switchTurn(game);
+  return { ok: true };
 }
 
 function checkWinner(game: GameState): void {

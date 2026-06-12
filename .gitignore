@@ -2,3 +2,9 @@ node_modules/
 dist/
 .env
 *.log
+server/.env
+server/serviceAccountKey.json
+server/*.json
+!server/package.json
+!server/package-lock.json
+*.local

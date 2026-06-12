@@ -1,0 +1,96 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function userCreateFields() {
+      return [
+        "uid",
+        "email",
+        "displayName",
+        "publicId",
+        "elo",
+        "wins",
+        "losses",
+        "rankedMatches",
+        "avatarId",
+        "profileColor",
+        "linkedProviders",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function publicIdCreateFields() {
+      return ["uid", "publicId", "createdAt"];
+    }
+
+    function canCreateOwnProfile(uid) {
+      return signedInAs(uid)
+        && request.resource.data.keys().hasOnly(userCreateFields())
+        && request.resource.data.keys().hasAll(userCreateFields())
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.publicId is string
+        && request.resource.data.publicId.matches('^[a-z0-9_-]{3,16}$')
+        && request.resource.data.elo == 1000
+        && request.resource.data.wins == 0
+        && request.resource.data.losses == 0
+        && request.resource.data.rankedMatches == 0;
+    }
+
+    function onlyUpdatesSafeProfileFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "displayName",
+        "avatarId",
+        "profileColor",
+        "updatedAt"
+      ]);
+    }
+
+    function verifiedForAvatarChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["avatarId"])
+        || request.auth.token.email_verified == true;
+    }
+
+    match /users/{uid} {
+      allow read: if signedInAs(uid);
+      allow create: if canCreateOwnProfile(uid);
+      allow update: if signedInAs(uid) && onlyUpdatesSafeProfileFields() && verifiedForAvatarChange();
+      allow delete: if false;
+    }
+
+    match /publicIds/{publicId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && !exists(/databases/$(database)/documents/publicIds/$(publicId))
+        && request.resource.data.keys().hasOnly(publicIdCreateFields())
+        && request.resource.data.keys().hasAll(publicIdCreateFields())
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.publicId == publicId
+        && publicId.matches('^[a-z0-9_-]{3,16}$');
+      allow update, delete: if false;
+    }
+
+    match /matches/{matchId}/presence/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if signedInAs(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.connected is bool;
+      allow delete: if false;
+    }
+
+    match /matchmakingQueue/{uid} {
+      allow read: if signedInAs(uid);
+      allow create, update, delete: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.playerUids;
+      allow create, update, delete: if false;
+    }
+  }
+}

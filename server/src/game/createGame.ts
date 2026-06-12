@@ -1,6 +1,10 @@
 import type { GameState, PlayerColor, PlayerId, PlayerState } from "../../../shared/types";
 import { BOARD_SIZE, START_POSITIONS, WALLS_PER_PLAYER } from "../../../shared/constants";
 
+const GUEST_AVATAR_ID = "-1.png";
+const PLAYER_CLOCK_MS = 180_000;
+const TURN_CLOCK_MS = 30_000;
+
 function oppositeColor(color: PlayerColor): PlayerColor {
   return color === "blue" ? "red" : "blue";
 }
@@ -12,12 +16,16 @@ function playerWithColor(p1Color: PlayerColor, color: PlayerColor): PlayerId {
 function makePlayer(id: PlayerId, color: PlayerColor, previous?: PlayerState): PlayerState {
   return {
     id,
+    uid: previous?.uid,
     color,
     position: { ...(id === "P1" ? START_POSITIONS.P1 : START_POSITIONS.P2) },
     wallsLeft: WALLS_PER_PLAYER,
-    name: previous?.name ?? (id === "P1" ? "Тоглогч 1" : "Тоглогч 2"),
-    avatar: previous?.avatar ?? (color === "blue" ? "✹" : "✺"),
-    elo: previous?.elo ?? 1200,
+    name: previous?.name ?? (id === "P1" ? "Player 1" : "Player 2"),
+    avatar: previous?.avatar ?? GUEST_AVATAR_ID,
+    avatarId: previous?.avatarId ?? GUEST_AVATAR_ID,
+    profileColor: previous?.profileColor,
+    publicId: previous?.publicId,
+    elo: previous?.elo ?? 1000,
     record: previous?.record ?? { wins: 0, losses: 0 },
   };
 }
@@ -25,18 +33,29 @@ function makePlayer(id: PlayerId, color: PlayerColor, previous?: PlayerState): P
 export function createGame(roomId: string, previousPlayers?: GameState["players"]): GameState {
   const p1Color: PlayerColor = Math.random() < 0.5 ? "blue" : "red";
   const p2Color = oppositeColor(p1Color);
+  const currentTurn = playerWithColor(p1Color, "blue");
+  const turnStartedAt = Date.now();
 
   return {
     roomId,
     boardSize: BOARD_SIZE,
     status: "waiting",
-    currentTurn: playerWithColor(p1Color, "blue"),
+    currentTurn,
     players: {
       P1: makePlayer("P1", p1Color, previousPlayers?.P1),
       P2: makePlayer("P2", p2Color, previousPlayers?.P2),
     },
     walls: [],
     moveHistory: [],
+    chatMessages: [],
     winner: null,
+    clocks: {
+      totalMs: {
+        P1: PLAYER_CLOCK_MS,
+        P2: PLAYER_CLOCK_MS,
+      },
+      turnStartedAt,
+      turnEndsAt: turnStartedAt + TURN_CLOCK_MS,
+    },
   };
 }
