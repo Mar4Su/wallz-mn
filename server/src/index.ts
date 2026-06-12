@@ -23,7 +23,7 @@ import {
 } from "./game/rooms";
 import { applyGiveUp, applyPawnMove, applyTurnTimeout, applyWallPlacement, finishGame, getLegalPawnMoves } from "./game/rules";
 import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, TimeControlId, Wall } from "../../shared/types";
-import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
+import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getLeaderboardRank, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
 import { resolveTimeControl } from "../../shared/timeControls";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -273,8 +273,12 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.get("/leaderboard", async (req, res) => {
   try {
-    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 25;
-    res.json({ players: await getLeaderboard(limit) });
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 50;
+    const decoded = req.headers.authorization ? await verifyBearerToken(req.headers.authorization).catch(() => null) : null;
+    res.json({
+      players: await getLeaderboard(limit),
+      currentPlayer: decoded ? await getLeaderboardRank(decoded.uid) : null,
+    });
   } catch {
     res.status(500).json({ error: "Could not load leaderboard." });
   }

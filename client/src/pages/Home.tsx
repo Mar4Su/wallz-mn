@@ -17,7 +17,7 @@ type Props = {
   error: string | null;
 };
 
-type PlayMode = "ranked" | "casual" | "computer" | "friend" | "leaderboard";
+type PlayMode = "ranked" | "casual" | "computer" | "friend";
 type SearchMode = "ranked" | "casual" | null;
 const AI_DIFFICULTIES: Array<{ id: AiDifficulty; label: string; description: string }> = [
   { id: "easy", label: "Easy", description: "Learns the board, rare walls" },
@@ -169,6 +169,7 @@ export default function Home({ error }: Props) {
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControlId>(DEFAULT_TIME_CONTROL_ID);
   const [searchTimeControl, setSearchTimeControl] = useState<TimeControlId>(DEFAULT_TIME_CONTROL_ID);
   const [leaderboard, setLeaderboard] = useState<LeaderboardPlayer[]>([]);
+  const [currentRank, setCurrentRank] = useState<LeaderboardPlayer | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const rankedCancelTokenRef = useRef<string | null>(null);
@@ -286,15 +287,14 @@ export default function Home({ error }: Props) {
     setActivePanel("friend");
   }
 
-  async function openLeaderboard() {
-    setSearchMode(null);
-    setModeMessage(null);
-    setActivePanel("leaderboard");
+  async function refreshLeaderboard() {
     setLeaderboardError(null);
     setLeaderboardLoading(true);
 
     try {
-      setLeaderboard(await getLeaderboard(25));
+      const result = await getLeaderboard(50, currentUser);
+      setLeaderboard(result.players);
+      setCurrentRank(result.currentPlayer);
     } catch (err) {
       setLeaderboardError(err instanceof Error ? err.message : "Could not load leaderboard.");
     } finally {
@@ -420,6 +420,10 @@ export default function Home({ error }: Props) {
     });
   }, [currentUser, rankedMatchId]);
 
+  useEffect(() => {
+    void refreshLeaderboard();
+  }, [currentUser?.uid]);
+
   return (
     <main className="home home-v2">
       <section className="home-shell">
@@ -444,11 +448,6 @@ export default function Home({ error }: Props) {
             <PlayModeCard label="Play Computer" subtitle="Practice against 4 bot levels" meta="AI" onClick={openComputer} />
             <PlayModeCard label="Play a Friend" subtitle="Create or join by room code" meta="Room" onClick={openFriend} />
           </div>
-
-          <button className="leaderboard-strip" onClick={() => void openLeaderboard()}>
-            <span>Leaderboard</span>
-            <strong>Top ranked players</strong>
-          </button>
 
           {(modeMessage || searchMode) && (
             <section className="mode-status-panel">
@@ -542,10 +541,54 @@ export default function Home({ error }: Props) {
               </section>
             )}
           </section>
+
+          <section className="side-leaderboard-card">
+            <div className="side-leaderboard-head">
+              <div>
+                <span>Leaderboard</span>
+                <strong>Top 50</strong>
+              </div>
+              <button onClick={() => void refreshLeaderboard()} disabled={leaderboardLoading}>Refresh</button>
+            </div>
+
+            {currentUser && currentRank && (
+              <div className="my-rank-card">
+                <span>Your rank</span>
+                <strong>#{currentRank.rank}</strong>
+                <small>{currentRank.elo} ELO - {currentRank.wins}W / {currentRank.losses}L</small>
+              </div>
+            )}
+
+            {!currentUser && <p className="leaderboard-empty compact">Login to see your rank placement.</p>}
+
+            <div className="side-leaderboard-list">
+              {leaderboardLoading ? (
+                <p className="leaderboard-empty compact">Loading leaderboard...</p>
+              ) : leaderboardError ? (
+                <p className="leaderboard-empty compact">{leaderboardError}</p>
+              ) : leaderboard.length === 0 ? (
+                <p className="leaderboard-empty compact">No ranked players yet.</p>
+              ) : (
+                leaderboard.map((player) => (
+                  <div key={player.uid} className={`leaderboard-row compact ${player.uid === currentUser?.uid ? "me" : ""}`}>
+                    <span className="leaderboard-rank">#{player.rank}</span>
+                    <span className={`leaderboard-avatar ${player.profileColor}`}>
+                      <img src={profilePictureUrl(player.avatarId)} alt="" />
+                    </span>
+                    <div>
+                      <strong>{player.displayName}</strong>
+                      <small>@{player.publicId} - {player.wins}W / {player.losses}L</small>
+                    </div>
+                    <b>{player.elo}</b>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </aside>
       </section>
 
-      {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer" || activePanel === "leaderboard") && (
+      {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer") && (
         <section className="home-modal-backdrop" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !searchMode) setActivePanel(null);
         }}>
@@ -649,38 +692,6 @@ export default function Home({ error }: Props) {
               </>
             )}
 
-            {activePanel === "leaderboard" && (
-              <>
-                <div className="modal-heading">
-                  <span>Leaderboard</span>
-                  <strong>Top ranked players</strong>
-                </div>
-
-                <div className="leaderboard-list">
-                  {leaderboardLoading ? (
-                    <p className="leaderboard-empty">Loading leaderboard...</p>
-                  ) : leaderboardError ? (
-                    <p className="leaderboard-empty">{leaderboardError}</p>
-                  ) : leaderboard.length === 0 ? (
-                    <p className="leaderboard-empty">No ranked players yet.</p>
-                  ) : (
-                    leaderboard.map((player) => (
-                      <div key={player.uid} className="leaderboard-row">
-                        <span className="leaderboard-rank">#{player.rank}</span>
-                        <span className={`leaderboard-avatar ${player.profileColor}`}>
-                          <img src={profilePictureUrl(player.avatarId)} alt="" />
-                        </span>
-                        <div>
-                          <strong>{player.displayName}</strong>
-                          <small>@{player.publicId} · {player.wins}W / {player.losses}L · {player.winRate}%</small>
-                        </div>
-                        <b>{player.elo}</b>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
           </div>
         </section>
       )}

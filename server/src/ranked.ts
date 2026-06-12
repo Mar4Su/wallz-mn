@@ -49,6 +49,20 @@ type QueueDoc = {
   updatedAt?: Timestamp;
 };
 
+type LeaderboardPlayer = {
+  rank?: number;
+  uid: string;
+  displayName: string;
+  publicId: string;
+  avatarId: string;
+  profileColor: string;
+  elo: number;
+  wins: number;
+  losses: number;
+  rankedMatches: number;
+  winRate: number;
+};
+
 export async function verifyBearerToken(header: string | undefined): Promise<DecodedIdToken> {
   const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
   if (!token) throw new Error("Missing auth token.");
@@ -107,6 +121,25 @@ function queueIsFresh(queue: QueueDoc, now: number): boolean {
 function matchIsFresh(match: RankedMatchDoc, now: number): boolean {
   const createdAt = timestampMs(match.createdAt);
   return createdAt !== null && now - createdAt <= MATCH_JOIN_GRACE_MS;
+}
+
+function leaderboardPlayerFromData(uid: string, user: DocumentData): LeaderboardPlayer {
+  const wins = Number(user.wins ?? 0);
+  const losses = Number(user.losses ?? 0);
+  const total = wins + losses;
+
+  return {
+    uid: String(user.uid ?? uid),
+    displayName: String(user.displayName ?? user.publicId ?? "Player"),
+    publicId: String(user.publicId ?? uid.slice(0, 8)),
+    avatarId: String(user.avatarId ?? DEFAULT_AVATAR_ID),
+    profileColor: String(user.profileColor ?? "blue"),
+    elo: Number(user.elo ?? 1000),
+    wins,
+    losses,
+    rankedMatches: Number(user.rankedMatches ?? total),
+    winRate: total === 0 ? 0 : Math.round((wins / total) * 100),
+  };
 }
 
 export async function enqueueRanked(decoded: DecodedIdToken, requestedTimeControlId?: TimeControlId) {
@@ -279,7 +312,7 @@ export async function getRankedMatch(matchId: string): Promise<RankedMatchDoc | 
   return snapshot.exists ? (snapshot.data() as RankedMatchDoc) : null;
 }
 
-export async function getLeaderboard(limit = 25) {
+export async function getLeaderboard(limit = 50) {
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
   const snapshot = await adminDb
     .collection("users")
@@ -287,26 +320,28 @@ export async function getLeaderboard(limit = 25) {
     .limit(safeLimit)
     .get();
 
-  return snapshot.docs.map((doc) => {
-    const user = doc.data();
-    const wins = Number(user.wins ?? 0);
-    const losses = Number(user.losses ?? 0);
-    const total = wins + losses;
-
-    return {
-      uid: String(user.uid ?? doc.id),
-      displayName: String(user.displayName ?? user.publicId ?? "Player"),
-      publicId: String(user.publicId ?? doc.id.slice(0, 8)),
-      avatarId: String(user.avatarId ?? DEFAULT_AVATAR_ID),
-      profileColor: String(user.profileColor ?? "blue"),
-      elo: Number(user.elo ?? 1000),
-      wins,
-      losses,
-      rankedMatches: Number(user.rankedMatches ?? total),
-      winRate: total === 0 ? 0 : Math.round((wins / total) * 100),
-    };
-  }).sort((a, b) => b.elo - a.elo || b.wins - a.wins || a.losses - b.losses)
+  return snapshot.docs.map((doc) => leaderboardPlayerFromData(doc.id, doc.data()))
+    .sort((a, b) => b.elo - a.elo || b.wins - a.wins || a.losses - b.losses)
     .map((player, index) => ({ ...player, rank: index + 1 }));
+}
+
+export async function getLeaderboardRank(uid: string): Promise<(LeaderboardPlayer & { rank: number }) | null> {
+  const userSnapshot = await adminDb.collection("users").doc(uid).get();
+  if (!userSnapshot.exists) return null;
+
+  const player = leaderboardPlayerFromData(userSnapshot.id, userSnapshot.data() ?? {});
+  const higherEloSnapshot = await adminDb.collection("users").where("elo", ">", player.elo).count().get();
+  const sameEloSnapshot = await adminDb.collection("users").where("elo", "==", player.elo).get();
+  const betterTieCount = sameEloSnapshot.docs
+    .filter((doc) => doc.id !== uid)
+    .map((doc) => leaderboardPlayerFromData(doc.id, doc.data()))
+    .filter((candidate) => candidate.wins > player.wins || (candidate.wins === player.wins && candidate.losses < player.losses))
+    .length;
+
+  return {
+    ...player,
+    rank: higherEloSnapshot.data().count + betterTieCount + 1,
+  };
 }
 
 export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: string, winnerUid: string, loserUid: string) {

@@ -3048,13 +3048,105 @@ body::before {
 }
 
 .home-v2 .home-side {
-  display: block;
+  display: grid;
+  gap: 14px;
   position: sticky;
   top: 20px;
+  align-self: start;
 }
 
 .home-v2 .profile-card-v2 {
   padding: 18px;
+}
+
+.side-leaderboard-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 211, 106, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(27, 31, 42, 0.94), rgba(13, 16, 22, 0.94));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+.side-leaderboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.side-leaderboard-head span,
+.my-rank-card span {
+  display: block;
+  color: #ffd36a;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.side-leaderboard-head strong {
+  display: block;
+  margin-top: 3px;
+  color: #f8fbff;
+  font-size: 22px;
+}
+
+.side-leaderboard-head button {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.my-rank-card {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 211, 106, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 211, 106, 0.14), rgba(53, 232, 214, 0.08)),
+    rgba(255, 255, 255, 0.045);
+}
+
+.my-rank-card strong {
+  color: #f8fbff;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.my-rank-card small {
+  color: #c4cedb;
+  font-weight: 800;
+}
+
+.side-leaderboard-list {
+  max-height: 560px;
+  display: grid;
+  gap: 7px;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(106, 255, 239, 0.45) rgba(255, 255, 255, 0.06);
+}
+
+.side-leaderboard-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.side-leaderboard-list::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.side-leaderboard-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(106, 255, 239, 0.45);
 }
 
 .home-v2 .account-card-heading,
@@ -3312,6 +3404,21 @@ body::before {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.leaderboard-row.compact {
+  grid-template-columns: 42px 36px minmax(0, 1fr) auto;
+  gap: 9px;
+  padding: 8px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.leaderboard-row.me {
+  border-color: rgba(106, 255, 239, 0.4);
+  background:
+    linear-gradient(135deg, rgba(106, 255, 239, 0.11), rgba(255, 211, 106, 0.07)),
+    rgba(255, 255, 255, 0.055);
+}
+
 .leaderboard-rank {
   color: #ffd36a;
   font-weight: 1000;
@@ -3333,6 +3440,12 @@ body::before {
   object-fit: cover;
 }
 
+.leaderboard-row.compact .leaderboard-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
 .leaderboard-row strong {
   display: block;
   color: #f8fbff;
@@ -3345,6 +3458,7 @@ body::before {
   display: block;
   margin-top: 2px;
   color: #aeb8c7;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3355,6 +3469,10 @@ body::before {
   font-size: 20px;
 }
 
+.leaderboard-row.compact b {
+  font-size: 16px;
+}
+
 .leaderboard-empty {
   margin: 0;
   padding: 22px;
@@ -3362,6 +3480,12 @@ body::before {
   color: #aeb8c7;
   text-align: center;
   background: rgba(255, 255, 255, 0.045);
+}
+
+.leaderboard-empty.compact {
+  margin-bottom: 10px;
+  padding: 14px;
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {
