@@ -84,8 +84,10 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   const [rankedResult, setRankedResult] = useState<RankedFinalizeResponse | null>(null);
   const [chatText, setChatText] = useState("");
   const [showResultOverlay, setShowResultOverlay] = useState(game.status === "finished");
+  const [boardIntroStaggerKey, setBoardIntroStaggerKey] = useState(0);
   const rankedFinalizeRef = useRef<string | null>(null);
   const chatListRef = useRef<HTMLDivElement | null>(null);
+  const introFinishedRef = useRef(false);
 
   const isMyTurn = game.status === "playing" && game.currentTurn === playerId;
   const opponentId = oppositePlayer(playerId);
@@ -112,6 +114,12 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   const chatMessages = game.chatMessages ?? [];
   const handleWinAnimationComplete = useCallback(() => {
     setShowResultOverlay(true);
+  }, []);
+  const finishMatchIntro = useCallback(() => {
+    if (introFinishedRef.current) return;
+    introFinishedRef.current = true;
+    setShowMatchIntro(false);
+    setBoardIntroStaggerKey((key) => key + 1);
   }, []);
 
   function onCellClick(position: Position) {
@@ -214,9 +222,10 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
     }
 
     setShowMatchIntro(true);
-    const timer = window.setTimeout(() => setShowMatchIntro(false), 2200);
+    introFinishedRef.current = false;
+    const timer = window.setTimeout(finishMatchIntro, 2200);
     return () => window.clearTimeout(timer);
-  }, [game.status, roomId]);
+  }, [finishMatchIntro, game.status, roomId]);
 
   useEffect(() => {
     if (game.status !== "finished") {
@@ -349,7 +358,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
       )}
 
       {showMatchIntro && game.status === "playing" && (
-        <section className="match-intro-overlay" onClick={() => setShowMatchIntro(false)}>
+        <section className="match-intro-overlay" onClick={finishMatchIntro}>
           <div className="versus-card">
             <div className={`intro-player intro-you ${myColor}-intro`}>
               <div className={`intro-avatar ${myColor}-avatar`}>
@@ -469,6 +478,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
           dragPoint={dragPoint}
           onCellClick={onCellClick}
           onWallClick={onWallClick}
+          introStaggerKey={boardIntroStaggerKey}
           onWinAnimationComplete={handleWinAnimationComplete}
         />
 

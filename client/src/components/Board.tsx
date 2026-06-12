@@ -11,6 +11,7 @@ type Props = {
   dragPoint: DragPoint;
   onCellClick: (position: Position) => void;
   onWallClick: (wall: Wall) => void;
+  introStaggerKey?: number;
   onWinAnimationComplete?: () => void;
 };
 
@@ -230,8 +231,9 @@ const HOTSPOTS = [
   "left-bottom",
 ];
 
-export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick, onWinAnimationComplete }: Props) {
+export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick, introStaggerKey = 0, onWinAnimationComplete }: Props) {
   const [previewWall, setPreviewWall] = useState<Wall | null>(null);
+  const [activeIntroStaggerKey, setActiveIntroStaggerKey] = useState(0);
   const wallHotspotPointerType = useRef<string | null>(null);
   const previousPositions = useRef<Record<PlayerId, Position>>({
     P1: { ...game.players.P1.position },
@@ -266,6 +268,26 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
       return { row, col, delay };
     });
   }, [game.boardSize, winnerDisplayPosition]);
+
+  const introBurstSquares = useMemo(() => {
+    return Array.from({ length: game.boardSize * game.boardSize }, (_, index) => {
+      const row = Math.floor(index / game.boardSize);
+      const col = index % game.boardSize;
+      return {
+        row,
+        col,
+        delay: (game.boardSize - 1 - row + col) * 58,
+      };
+    });
+  }, [game.boardSize]);
+
+  useEffect(() => {
+    if (introStaggerKey <= 0) return undefined;
+    setActiveIntroStaggerKey(introStaggerKey);
+    const maxDelay = Math.max(...introBurstSquares.map((square) => square.delay));
+    const timer = window.setTimeout(() => setActiveIntroStaggerKey(0), maxDelay + 860);
+    return () => window.clearTimeout(timer);
+  }, [introBurstSquares, introStaggerKey]);
 
   useEffect(() => {
     if (!game.winner || winBurstSquares.length === 0 || !onWinAnimationComplete) return undefined;
@@ -416,6 +438,21 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
             <span
               key={`${square.row}-${square.col}`}
               className="win-stagger-square"
+              style={{
+                gridRow: square.row + 1,
+                gridColumn: square.col + 1,
+                "--win-delay": `${square.delay}ms`,
+              } as CSSProperties}
+            />
+          ))}
+        </div>
+      )}
+      {!game.winner && activeIntroStaggerKey > 0 && (
+        <div key={activeIntroStaggerKey} className="win-stagger-grid intro-stagger-grid" aria-hidden="true">
+          {introBurstSquares.map((square) => (
+            <span
+              key={`${square.row}-${square.col}`}
+              className="win-stagger-square intro-stagger-square"
               style={{
                 gridRow: square.row + 1,
                 gridColumn: square.col + 1,
