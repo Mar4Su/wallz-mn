@@ -12,7 +12,7 @@ import { getLeaderboard } from "../leaderboardApi";
 import type { LeaderboardPlayer } from "../leaderboardApi";
 import { getMyMatchHistory } from "../matchHistoryApi";
 import type { MatchHistoryPlayer, MatchHistoryRecord } from "../matchHistoryApi";
-import { PROFILE_PICTURE_IDS, profilePictureUrl } from "../profilePictures";
+import { profilePictureUrl } from "../profilePictures";
 import type { AiDifficulty } from "../../../shared/types";
 import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../../../shared/timeControls";
 
@@ -415,7 +415,6 @@ export default function Home({ error, onGoProfile }: Props) {
   const [searchStartedAt, setSearchStartedAt] = useState<number | null>(null);
   const [rankedElapsed, setRankedElapsed] = useState(0);
   const [modeMessage, setModeMessage] = useState<string | null>(null);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>("normal");
   const [playingCount, setPlayingCount] = useState(0);
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControlId>(DEFAULT_TIME_CONTROL_ID);
@@ -430,7 +429,7 @@ export default function Home({ error, onGoProfile }: Props) {
   const [selectedOpponent, setSelectedOpponent] = useState<MatchHistoryPlayer | null>(null);
   const rankedCancelTokenRef = useRef<string | null>(null);
   const rankedSearchingRef = useRef(false);
-  const { currentUser, profile, loading, authReady, configError, signupWithEmail, loginWithEmail, logout, updateAvatarId } = useAuth();
+  const { currentUser, profile, loading, authReady, configError, signupWithEmail, loginWithEmail, logout } = useAuth();
   const rankedEnabled = canUseRankedMatchmaking(currentUser);
   const homeText = HOME_TEXT[language];
 
@@ -598,15 +597,6 @@ export default function Home({ error, onGoProfile }: Props) {
     }
   }
 
-  async function onAvatarPick(avatarId: string) {
-    setProfileMessage(null);
-    try {
-      await updateAvatarId(avatarId);
-    } catch (err) {
-      setProfileMessage(err instanceof Error ? err.message : "Could not update profile picture.");
-    }
-  }
-
   async function refreshMatchHistory() {
     if (!currentUser) {
       setMatchHistory([]);
@@ -736,11 +726,16 @@ export default function Home({ error, onGoProfile }: Props) {
     <main className="home home-v2">
       <HomeBackground3D />
       <header className="home-topbar">
-        <button className="language-toggle" onClick={() => setLanguage((value) => value === "mn" ? "en" : "mn")}>
-          {language === "mn" ? "MN" : "EN"}
+        <button className="home-brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          XAHA
         </button>
-        <div className="account-menu">
-          <button className="account-trigger" onClick={() => setAccountOpen((value) => !value)}>
+        <div className="topbar-actions">
+          <span className="online-pill"><i /> {playingCount} playing</span>
+          <button className="language-toggle" onClick={() => setLanguage((value) => value === "mn" ? "en" : "mn")}>
+            {language === "mn" ? "MN" : "EN"}
+          </button>
+          <div className="account-menu">
+            <button className="account-trigger" onClick={() => setAccountOpen((value) => !value)}>
             {currentUser && profile ? (
               <>
                 <span className={`mini-avatar ${profile.profileColor}`}>
@@ -751,10 +746,10 @@ export default function Home({ error, onGoProfile }: Props) {
             ) : (
               <strong>{homeText.login}</strong>
             )}
-          </button>
+            </button>
 
-          {accountOpen && (
-            <section className="account-dropdown">
+            {accountOpen && (
+              <section className="account-dropdown">
               {currentUser && profile ? (
                 <>
                   <button onClick={() => {
@@ -786,11 +781,68 @@ export default function Home({ error, onGoProfile }: Props) {
                   {authError && <p className="error-text">{authError}</p>}
                 </form>
               )}
-            </section>
-          )}
+              </section>
+            )}
+          </div>
         </div>
       </header>
       <section className="home-shell">
+        {currentUser && profile && (
+          <section className="profile-card-v2 home-profile-strip">
+            <div className="home-profile-stats">
+              <div className="home-profile-identity">
+                <span className={`profile-avatar ${profile.profileColor}`}>
+                  <img src={profilePictureUrl(profile.avatarId)} alt="" />
+                </span>
+                <div>
+                  <span className="profile-label">Your stats</span>
+                  <strong>{profile.displayName}</strong>
+                </div>
+              </div>
+
+              <div className="home-profile-score">
+                <strong>{profile.elo}</strong>
+                <span>ELO</span>
+                {currentRank && <em>#{currentRank.rank} of {Math.max(totalRankedPlayers, currentRank.rank)}</em>}
+              </div>
+
+              <div className="home-profile-record">
+                <p><b>{profile.wins}W</b> / <b>{profile.losses}L</b></p>
+                <span>{winRate}% win rate</span>
+                <div className="profile-winbar"><span style={{ width: `${winRate}%` }} /></div>
+                <div className="profile-form-row">
+                  <span>FORM</span>
+                  {recentResults.length > 0 ? recentResults.map((match) => (
+                    <b key={match.matchId} className={match.result}>{match.result === "win" ? "W" : "L"}</b>
+                  )) : <small>No ranked games yet</small>}
+                </div>
+              </div>
+            </div>
+
+            <div className="home-profile-history">
+              {historyError ? (
+                <p className="leaderboard-empty compact">{historyError}</p>
+              ) : matchHistory.length === 0 ? (
+                <p className="leaderboard-empty compact">{homeText.noHistory}</p>
+              ) : (
+                matchHistory.slice(0, 5).map((match) => (
+                  <article key={match.matchId} className={`match-history-row ${match.result}`}>
+                    <strong>{match.result === "win" ? "WIN" : "LOSS"}</strong>
+                    <span className={`mini-avatar ${match.result === "win" ? "blue" : "red"}`} />
+                    <button className="history-opponent" onClick={() => setSelectedOpponent(match.players.find((player) => player.uid === match.opponentUid) ?? null)}>
+                      {match.opponentName}
+                    </button>
+                    <span className={match.eloDelta >= 0 ? "positive" : "negative"}>
+                      {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta}
+                    </span>
+                    <button className="icon-action-button" onClick={() => setSelectedReplay(match)} title={homeText.replay}>▶</button>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="home-hero-card">
           <div className="home-title-row">
             <div>
@@ -827,92 +879,8 @@ export default function Home({ error, onGoProfile }: Props) {
         </section>
 
         <aside className="home-side">
-          <section className="profile-card-v2">
-            {loading ? (
-              <p className="auth-muted">Loading account...</p>
-            ) : currentUser && profile ? (
-              <div className="profile-summary">
-                <div className="profile-head">
-                  <span className={`profile-avatar ${profile.profileColor}`}>
-                    <img src={profilePictureUrl(profile.avatarId)} alt="" />
-                  </span>
-                  <div>
-                    <span className="profile-label">{homeText.profile}</span>
-                    <strong>{profile.displayName}</strong>
-                    <small>@{profile.publicId} - {profile.email}</small>
-                  </div>
-                </div>
-
-                <div className="profile-stats">
-                  <span>ELO {profile.elo}</span>
-                  <span>{rankPlacement}</span>
-                  <span>{winRate}% win rate</span>
-                </div>
-
-                <div className="recent-form">
-                  <span>{homeText.recentForm}</span>
-                  <div>
-                    {recentResults.length > 0 ? recentResults.map((match) => (
-                      <b key={match.matchId} className={match.result}>{match.result === "win" ? "W" : "L"}</b>
-                    )) : <small>No ranked games yet</small>}
-                  </div>
-                </div>
-
-                <div className="avatar-picker" aria-label="Profile pictures">
-                  {PROFILE_PICTURE_IDS.map((avatarId) => (
-                    <button
-                      key={avatarId}
-                      className={profile.avatarId === avatarId ? "active" : ""}
-                      onClick={() => void onAvatarPick(avatarId)}
-                      disabled={!currentUser.emailVerified}
-                      title={currentUser.emailVerified ? "Use this picture" : "Verify email to change picture"}
-                    >
-                      <img src={profilePictureUrl(avatarId)} alt="" />
-                    </button>
-                  ))}
-                </div>
-
-                {profileMessage && <p className="verify-warning">{profileMessage}</p>}
-                {!currentUser.emailVerified && <p className="verify-warning">Please verify your email before playing ranked.</p>}
-
-                <section className="match-history-card">
-                  <div className="match-history-head">
-                    <span>{homeText.history}</span>
-                    <button onClick={() => void refreshMatchHistory()}>Refresh</button>
-                  </div>
-                  {historyError ? (
-                    <p className="leaderboard-empty compact">{historyError}</p>
-                  ) : matchHistory.length === 0 ? (
-                    <p className="leaderboard-empty compact">{homeText.noHistory}</p>
-                  ) : (
-                    <div className="match-history-list">
-                      {matchHistory.slice(0, 5).map((match) => (
-                        <article key={match.matchId} className={`match-history-row ${match.result}`}>
-                          <strong>{match.result === "win" ? "WIN" : "LOSS"}</strong>
-                          <button className="history-opponent" onClick={() => setSelectedOpponent(match.players.find((player) => player.uid === match.opponentUid) ?? null)}>
-                            {match.opponentName}
-                          </button>
-                          <span className={match.eloDelta >= 0 ? "positive" : "negative"}>
-                            {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} ELO
-                          </span>
-                          <button onClick={() => setSelectedReplay(match)}>{homeText.replay}</button>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </div>
-            ) : (
-              <section className="profile-summary logged-out-summary" aria-label="Account">
-                <div className="account-card-heading">
-                  <span>{homeText.account}</span>
-                  <strong>{homeText.login}</strong>
-                </div>
-                <p className="auth-muted">{homeText.loginSave}</p>
-                <button className="secondary-button" onClick={() => setAccountOpen(true)}>{homeText.login}</button>
-              </section>
-            )}
-          </section>
+          {loading && <p className="auth-muted">Loading account...</p>}
+          {currentUser && profile && !currentUser.emailVerified && <p className="verify-warning">Please verify your email before playing ranked.</p>}
 
           <section className="side-leaderboard-card">
             <div className="side-leaderboard-head">
@@ -920,7 +888,6 @@ export default function Home({ error, onGoProfile }: Props) {
                 <span>{homeText.leaderboard}</span>
                 <strong>{homeText.top50}</strong>
               </div>
-              <button onClick={() => void refreshLeaderboard()} disabled={leaderboardLoading}>{homeText.refresh}</button>
             </div>
 
             {currentUser && currentRank && (

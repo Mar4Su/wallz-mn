@@ -2336,6 +2336,10 @@ body {
 .home-modal button,
 .profile-card-v2 button,
 .side-leaderboard-card button,
+.language-toggle,
+.account-trigger,
+.account-dropdown > button,
+.icon-action-button,
 .wall-card,
 .rematch-actions button,
 .rematch-button,
@@ -2354,6 +2358,10 @@ body {
 .home-modal button:hover,
 .profile-card-v2 button:hover,
 .side-leaderboard-card button:hover,
+.language-toggle:hover,
+.account-trigger:hover,
+.account-dropdown > button:hover,
+.icon-action-button:hover,
 .wall-card:hover,
 .rematch-actions button:hover,
 .rematch-button:hover,
@@ -2370,6 +2378,10 @@ body {
 .home-modal button:active,
 .profile-card-v2 button:active,
 .side-leaderboard-card button:active,
+.language-toggle:active,
+.account-trigger:active,
+.account-dropdown > button:active,
+.icon-action-button:active,
 .wall-card:active,
 .rematch-actions button:active,
 .rematch-button:active,
@@ -3056,15 +3068,19 @@ body::before {
   align-items: start;
 }
 
+.home-profile-strip {
+  grid-column: 1 / -1;
+}
+
 .home-v2 .home-hero-card,
 .home-v2 .profile-card-v2 {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035)),
-    rgba(8, 12, 18, 0.52);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.022)),
+    rgba(11, 10, 10, 0.42);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(125%);
 }
 
 .home-v2 .home-hero-card {
@@ -3074,29 +3090,77 @@ body::before {
 }
 
 .home-topbar {
-  width: min(1180px, 100%);
+  width: 100%;
   position: relative;
   z-index: 4;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  margin: 0 auto 14px;
+  margin: calc(clamp(16px, 3vw, 36px) * -1) auto 40px;
+  padding: 14px clamp(18px, 3vw, 24px);
+  border-bottom: 1px solid rgba(106, 255, 239, 0.22);
+  background:
+    linear-gradient(90deg, rgba(20, 41, 34, 0.78), rgba(22, 14, 14, 0.72)),
+    rgba(7, 7, 5, 0.62);
+  backdrop-filter: blur(18px) saturate(145%);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.24);
+}
+
+.home-brand {
+  border: 0;
+  color: #fff7dc;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 1000;
+  letter-spacing: 0.34em;
+  cursor: pointer;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.online-pill {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 246, 220, 0.1);
+  color: rgba(255, 246, 220, 0.62);
+  background: rgba(30, 20, 22, 0.62);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.online-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2cff7d;
+  box-shadow: 0 0 14px rgba(44, 255, 125, 0.8);
 }
 
 .language-toggle,
 .account-trigger {
-  min-height: 44px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #f8fbff;
-  background: rgba(8, 12, 18, 0.48);
-  backdrop-filter: blur(18px) saturate(140%);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.22);
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 246, 220, 0.11);
+  color: #fff7dc;
+  background: rgba(30, 20, 22, 0.62);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: none;
+  cursor: pointer;
 }
 
 .language-toggle {
-  min-width: 58px;
+  min-width: 48px;
   font-weight: 1000;
   letter-spacing: 0.1em;
 }
@@ -3108,8 +3172,8 @@ body::before {
 .account-trigger {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 12px 0 5px;
 }
 
 .mini-avatar {
@@ -3140,8 +3204,8 @@ body::before {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035)),
-    rgba(8, 12, 18, 0.82);
+    linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025)),
+    rgba(24, 18, 20, 0.9);
   backdrop-filter: blur(22px) saturate(145%);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
 }
@@ -3149,6 +3213,11 @@ body::before {
 .account-dropdown > button {
   min-height: 42px;
   border-radius: 12px;
+  border: 1px solid rgba(255, 246, 220, 0.1);
+  color: #fff7dc;
+  background: rgba(255, 246, 220, 0.06);
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .home-background-3d {
@@ -3164,8 +3233,8 @@ body::before {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(5, 7, 10, 0.64), rgba(5, 7, 10, 0.18) 48%, rgba(5, 7, 10, 0.74)),
-    linear-gradient(180deg, rgba(5, 7, 10, 0.2), rgba(5, 7, 10, 0.76));
+    linear-gradient(90deg, rgba(5, 7, 10, 0.44), rgba(5, 7, 10, 0.08) 48%, rgba(5, 7, 10, 0.52)),
+    linear-gradient(180deg, rgba(5, 7, 10, 0.12), rgba(5, 7, 10, 0.56));
 }
 
 .home-background-3d .home-arena-canvas,
@@ -3528,6 +3597,131 @@ body::before {
   font-weight: 800;
 }
 
+.home-profile-strip {
+  min-height: 232px;
+  display: grid;
+  grid-template-columns: minmax(250px, 280px) minmax(0, 1fr);
+  gap: 26px;
+  padding: 26px;
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, rgba(35, 23, 27, 0.88), rgba(24, 18, 19, 0.74)),
+    rgba(7, 5, 5, 0.5);
+}
+
+.home-profile-stats {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.home-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-profile-identity .profile-avatar {
+  width: 40px;
+  border-radius: 999px;
+}
+
+.home-profile-identity strong {
+  display: block;
+  margin-top: 2px;
+  color: #fff7dc;
+  font-size: 16px;
+}
+
+.home-profile-score {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.home-profile-score strong {
+  color: #ffbe1c;
+  font-size: clamp(46px, 6vw, 58px);
+  line-height: 0.9;
+}
+
+.home-profile-score span {
+  color: rgba(255, 246, 220, 0.42);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.home-profile-score em {
+  color: #d5b46f;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.home-profile-record {
+  display: grid;
+  gap: 7px;
+}
+
+.home-profile-record p {
+  margin: 0;
+  color: #2cff7d;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.home-profile-record p b:last-child {
+  color: #ff6078;
+}
+
+.home-profile-record > span {
+  color: rgba(255, 246, 220, 0.64);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.home-profile-record .profile-winbar {
+  max-width: 260px;
+}
+
+.home-profile-history {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.home-profile-history .match-history-row {
+  min-height: 38px;
+  grid-template-columns: 48px 28px minmax(0, 1fr) 52px 38px;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 10px 5px 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.home-profile-history .match-history-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.icon-action-button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 246, 220, 0.1);
+  color: #fff7dc;
+  background: rgba(255, 246, 220, 0.055);
+  cursor: pointer;
+  font-size: 11px;
+}
+
 .recent-form,
 .match-history-card {
   display: grid;
@@ -3635,6 +3829,8 @@ body::before {
   padding: 0 8px;
   border-radius: 9px;
   font-size: 11px;
+  border: 1px solid rgba(255, 246, 220, 0.08);
+  cursor: pointer;
 }
 
 .history-opponent {
@@ -3774,21 +3970,34 @@ body::before {
 }
 
 .profile-topbar {
-  min-height: 42px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  margin-bottom: 10px;
-  border-radius: 18px;
-  background: rgba(16, 18, 15, 0.8);
-  border: 1px solid rgba(255,255,255,0.06);
+  padding: 0 24px;
+  margin: -10px -10px 40px;
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(20, 41, 34, 0.78), rgba(22, 14, 14, 0.72)),
+    rgba(7, 7, 5, 0.62);
+  border-bottom: 1px solid rgba(106, 255, 239, 0.22);
+  backdrop-filter: blur(18px) saturate(145%);
 }
 
 .profile-topbar button {
   border-radius: 999px;
-  color: #f8fbff;
-  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 246, 220, 0.11);
+  color: #fff7dc;
+  background: rgba(30, 20, 22, 0.62);
+  cursor: pointer;
+  font-weight: 1000;
+}
+
+.profile-topbar button:first-child {
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  letter-spacing: 0.34em;
 }
 
 .profile-hero-bar {

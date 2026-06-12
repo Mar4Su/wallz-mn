@@ -154,7 +154,7 @@ export default function ProfilePage({ mode, identifier, onGoHome }: Props) {
   if (!profile) {
     return (
       <main className="profile-page">
-        <button className="home-button" onClick={onGoHome}>Wallz</button>
+        <button className="home-button" onClick={onGoHome}>XAHA</button>
         <p className="error-text">{error ?? "Loading profile..."}</p>
       </main>
     );
@@ -163,7 +163,7 @@ export default function ProfilePage({ mode, identifier, onGoHome }: Props) {
   return (
     <main className="profile-page">
       <header className="profile-topbar">
-        <button onClick={onGoHome}>WALLZ</button>
+        <button onClick={onGoHome}>XAHA</button>
         {isOwn && <button onClick={() => setEditOpen(true)}>Edit</button>}
       </header>
 
