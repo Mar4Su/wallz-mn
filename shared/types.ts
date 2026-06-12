@@ -61,6 +61,8 @@ export type MoveRecord = {
   playerId: PlayerId;
   kind: MoveKind;
   text: string;
+  to?: Position;
+  wall?: Wall;
 };
 
 export type ChatMessage = {

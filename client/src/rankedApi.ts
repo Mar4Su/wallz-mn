@@ -1,5 +1,5 @@
 import type { User } from "firebase/auth";
-import type { TimeControlId } from "../../shared/types";
+import type { MoveRecord, TimeControlId } from "../../shared/types";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 
@@ -59,9 +59,9 @@ export function cancelRankedWithToken(idToken: string): void {
   }).catch(() => undefined);
 }
 
-export function finalizeRanked(user: User, matchId: string, winnerUid: string, loserUid: string): Promise<RankedFinalizeResponse> {
+export function finalizeRanked(user: User, matchId: string, winnerUid: string, loserUid: string, moveHistory: MoveRecord[] = []): Promise<RankedFinalizeResponse> {
   return rankedRequest(user, "/ranked/finalize", {
     method: "POST",
-    body: JSON.stringify({ matchId, winnerUid, loserUid }),
+    body: JSON.stringify({ matchId, winnerUid, loserUid, moveHistory }),
   });
 }

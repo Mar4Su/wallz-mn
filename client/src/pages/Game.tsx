@@ -383,7 +383,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
     if (!winnerUid || !loserUid) return;
 
     rankedFinalizeRef.current = game.matchId;
-    void finalizeRanked(currentUser, game.matchId, winnerUid, loserUid)
+    void finalizeRanked(currentUser, game.matchId, winnerUid, loserUid, game.moveHistory ?? [])
       .then((result) => {
         setRankedResult(result);
         return refreshProfile();

@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { animate, stagger } from "animejs";
 import { socket } from "../socket";
 import { t } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
 import { canUseRankedMatchmaking } from "../auth/rankedAccess";
-import type { ClientPlayerProfile, TimeControlId } from "../../../shared/types";
+import type { ClientPlayerProfile, MoveRecord, PlayerId, Position, TimeControlId, Wall } from "../../../shared/types";
 import { cancelRanked, cancelRankedWithToken, enqueueRanked, getRankedStatus } from "../rankedApi";
 import { getLeaderboard } from "../leaderboardApi";
 import type { LeaderboardPlayer } from "../leaderboardApi";
+import { getMyMatchHistory } from "../matchHistoryApi";
+import type { MatchHistoryPlayer, MatchHistoryRecord } from "../matchHistoryApi";
 import { PROFILE_PICTURE_IDS, profilePictureUrl } from "../profilePictures";
 import type { AiDifficulty } from "../../../shared/types";
 import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../../../shared/timeControls";
@@ -20,12 +22,153 @@ type Props = {
 
 type PlayMode = "ranked" | "casual" | "computer" | "friend";
 type SearchMode = "ranked" | "casual" | null;
+type Language = "mn" | "en";
+
+const HOME_TEXT = {
+  mn: {
+    arena: "Амьд стратегийн талбар",
+    subtitle: "9x9 талбар дээрх хурдан стратеги тоглоом",
+    playingNow: "Тоглож байна",
+    play: "Тоглох",
+    ranked: "Ranked тоглолт - нэвтрэх шаардлагатай",
+    casual: "Энгийн",
+    casualSub: "Оноо тооцохгүй - нэвтрэх шаардлагагүй",
+    computer: "Компьютертэй тоглох",
+    computerSub: "4 түвшний bot эсрэг дасгал",
+    friend: "Найзтай тоглох",
+    friendSub: "Өрөө үүсгэх эсвэл кодоор орох",
+    loginSave: "Ranked тоглож, статистикаа хадгалахын тулд нэвтэрнэ үү.",
+    account: "Бүртгэл",
+    profile: "Профайл",
+    logout: "Гарах",
+    login: "Нэвтрэх",
+    register: "Бүртгүүлэх",
+    createAccount: "Бүртгэл үүсгэх",
+    rankOutOf: "нийт тоглогчоос",
+    recentForm: "Сүүлийн 5",
+    history: "Тоглолтын түүх",
+    noHistory: "Ranked тоглолт дууссаны дараа түүх энд гарна.",
+    replay: "Replay",
+    viewProfile: "Профайл харах",
+    leaderboard: "Чансаа",
+    top50: "Top 50",
+    refresh: "Шинэчлэх",
+  },
+  en: {
+    arena: "Live strategy arena",
+    subtitle: "Fast strategy on a 9x9 board",
+    playingNow: "Playing now",
+    play: "Play",
+    ranked: "Ranked match - login required",
+    casual: "Casual",
+    casualSub: "Unranked - no login needed",
+    computer: "Play Computer",
+    computerSub: "Practice against 4 bot levels",
+    friend: "Play a Friend",
+    friendSub: "Create or join by room code",
+    loginSave: "Login to play ranked and save your stats.",
+    account: "Account",
+    profile: "Profile",
+    logout: "Logout",
+    login: "Login",
+    register: "Register",
+    createAccount: "Create account",
+    rankOutOf: "out of",
+    recentForm: "Recent 5",
+    history: "Match history",
+    noHistory: "Finished ranked matches will appear here.",
+    replay: "Replay",
+    viewProfile: "View profile",
+    leaderboard: "Leaderboard",
+    top50: "Top 50",
+    refresh: "Refresh",
+  },
+} satisfies Record<Language, Record<string, string>>;
+
 const AI_DIFFICULTIES: Array<{ id: AiDifficulty; label: string; description: string }> = [
   { id: "easy", label: "Easy", description: "Learns the board, rare walls" },
   { id: "normal", label: "Normal", description: "Moves cleanly and blocks sometimes" },
   { id: "hard", label: "Hard", description: "Aggressive wall pressure" },
   { id: "pro", label: "Pro", description: "Maximum path control" },
 ];
+
+function ordinal(rank: number): string {
+  const mod100 = rank % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${rank}th`;
+  const mod10 = rank % 10;
+  if (mod10 === 1) return `${rank}st`;
+  if (mod10 === 2) return `${rank}nd`;
+  if (mod10 === 3) return `${rank}rd`;
+  return `${rank}th`;
+}
+
+function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const moves = match.moves ?? [];
+  const boardSize = 9;
+
+  useEffect(() => {
+    if (!playing || step >= moves.length) return undefined;
+    const timer = window.setTimeout(() => setStep((value) => Math.min(moves.length, value + 1)), 720);
+    return () => window.clearTimeout(timer);
+  }, [moves.length, playing, step]);
+
+  const replayState = useMemo(() => {
+    const positions: Record<PlayerId, Position> = {
+      P1: { row: 8, col: 4 },
+      P2: { row: 0, col: 4 },
+    };
+    const walls: Wall[] = [];
+    moves.slice(0, step).forEach((move: MoveRecord) => {
+      if (move.kind === "pawn" && move.to) positions[move.playerId] = { ...move.to };
+      if (move.kind === "wall" && move.wall) walls.push({ ...move.wall });
+    });
+    return { positions, walls };
+  }, [moves, step]);
+
+  return (
+    <section className="home-modal-backdrop replay-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <div className="home-modal replay-modal" role="dialog" aria-modal="true">
+        <button className="modal-close-button" onClick={onClose}>x</button>
+        <div className="modal-heading">
+          <span>{match.result === "win" ? "Win replay" : "Loss replay"}</span>
+          <strong>vs {match.opponentName}</strong>
+        </div>
+        <div className="replay-board">
+          {Array.from({ length: boardSize * boardSize }, (_, index) => {
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            const pawn = replayState.positions.P1.row === row && replayState.positions.P1.col === col ? "P1" : replayState.positions.P2.row === row && replayState.positions.P2.col === col ? "P2" : null;
+            return (
+              <div key={`${row}-${col}`} className="replay-cell">
+                {pawn && <span className={`replay-pawn ${pawn === "P1" ? "blue" : "red"}`} />}
+              </div>
+            );
+          })}
+          {replayState.walls.map((wall, index) => (
+            <span
+              key={`${wall.row}-${wall.col}-${wall.orientation}-${index}`}
+              className={`replay-wall ${wall.orientation === "H" ? "horizontal" : "vertical"}`}
+              style={{
+                "--wall-row": wall.row,
+                "--wall-col": wall.col,
+              } as CSSProperties}
+            />
+          ))}
+        </div>
+        <div className="replay-controls">
+          <button onClick={() => setStep((value) => Math.max(0, value - 1))}>Prev</button>
+          <button onClick={() => setPlaying((value) => !value)}>{playing ? "Pause" : "Play"}</button>
+          <button onClick={() => setStep((value) => Math.min(moves.length, value + 1))}>Next</button>
+        </div>
+        <p className="replay-step">Move {step} / {moves.length}</p>
+      </div>
+    </section>
+  );
+}
 
 function HomeBackground3D() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -263,6 +406,8 @@ export default function Home({ error }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [language, setLanguage] = useState<Language>("mn");
   const [activePanel, setActivePanel] = useState<PlayMode | "auth" | null>(null);
   const [searchMode, setSearchMode] = useState<SearchMode>(null);
   const [rankedMatchId, setRankedMatchId] = useState<string | null>(null);
@@ -278,16 +423,24 @@ export default function Home({ error }: Props) {
   const [currentRank, setCurrentRank] = useState<LeaderboardPlayer | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryRecord[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [selectedReplay, setSelectedReplay] = useState<MatchHistoryRecord | null>(null);
+  const [selectedOpponent, setSelectedOpponent] = useState<MatchHistoryPlayer | null>(null);
   const rankedCancelTokenRef = useRef<string | null>(null);
   const rankedSearchingRef = useRef(false);
   const { currentUser, profile, loading, authReady, configError, signupWithEmail, loginWithEmail, logout, updateAvatarId } = useAuth();
   const rankedEnabled = canUseRankedMatchmaking(currentUser);
+  const homeText = HOME_TEXT[language];
 
   const winRate = useMemo(() => {
     if (!profile) return 0;
     const total = profile.wins + profile.losses;
     return total === 0 ? 0 : Math.round((profile.wins / total) * 100);
   }, [profile]);
+  const totalRankedPlayers = leaderboard.length;
+  const rankPlacement = currentRank?.rank ? `${ordinal(currentRank.rank)} ${homeText.rankOutOf} ${Math.max(totalRankedPlayers, currentRank.rank)} players` : "Unranked";
+  const recentResults = matchHistory.slice(0, 5);
 
   function playerProfilePayload(): ClientPlayerProfile | undefined {
     if (!currentUser || !profile) return undefined;
@@ -316,7 +469,7 @@ export default function Home({ error }: Props) {
     setSearchMode(null);
     setRankedMatchId(null);
     if (!currentUser) {
-      setActivePanel("auth");
+      setAccountOpen(true);
       setModeMessage("Login to play ranked and save your stats.");
       return;
     }
@@ -436,6 +589,7 @@ export default function Home({ error }: Props) {
       }
       setPassword("");
       setModeMessage(null);
+      setAccountOpen(false);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
@@ -449,6 +603,20 @@ export default function Home({ error }: Props) {
       await updateAvatarId(avatarId);
     } catch (err) {
       setProfileMessage(err instanceof Error ? err.message : "Could not update profile picture.");
+    }
+  }
+
+  async function refreshMatchHistory() {
+    if (!currentUser) {
+      setMatchHistory([]);
+      return;
+    }
+
+    setHistoryError(null);
+    try {
+      setMatchHistory(await getMyMatchHistory(currentUser, 8));
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Could not load match history.");
     }
   }
 
@@ -531,6 +699,10 @@ export default function Home({ error }: Props) {
   }, [currentUser?.uid]);
 
   useEffect(() => {
+    void refreshMatchHistory();
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
     const animations = [
       animate(".home-v2 .xaha-wordmark", {
         opacity: [0, 1],
@@ -562,26 +734,81 @@ export default function Home({ error }: Props) {
   return (
     <main className="home home-v2">
       <HomeBackground3D />
+      <header className="home-topbar">
+        <button className="language-toggle" onClick={() => setLanguage((value) => value === "mn" ? "en" : "mn")}>
+          {language === "mn" ? "MN" : "EN"}
+        </button>
+        <div className="account-menu">
+          <button className="account-trigger" onClick={() => setAccountOpen((value) => !value)}>
+            {currentUser && profile ? (
+              <>
+                <span className={`mini-avatar ${profile.profileColor}`}>
+                  <img src={profilePictureUrl(profile.avatarId)} alt="" />
+                </span>
+                <strong>{profile.displayName}</strong>
+              </>
+            ) : (
+              <strong>{homeText.login}</strong>
+            )}
+          </button>
+
+          {accountOpen && (
+            <section className="account-dropdown">
+              {currentUser && profile ? (
+                <>
+                  <button onClick={() => {
+                    setAccountOpen(false);
+                    document.querySelector(".profile-card-v2")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}>{homeText.profile}</button>
+                  <button onClick={() => void logout()}>{homeText.logout}</button>
+                </>
+              ) : !authReady ? (
+                <p className="verify-warning">{configError ?? "Firebase Auth is not configured yet."}</p>
+              ) : (
+                <form className="auth-form" onSubmit={submitAuth}>
+                  <div className="auth-tabs">
+                    <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")}>
+                      {homeText.login}
+                    </button>
+                    <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>
+                      {homeText.register}
+                    </button>
+                  </div>
+                  {authMode === "register" && (
+                    <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Username / public ID" required />
+                  )}
+                  <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" type="email" required />
+                  <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" type="password" minLength={6} required />
+                  <button className="secondary-button" type="submit" disabled={authBusy}>
+                    {authBusy ? "Please wait..." : authMode === "register" ? homeText.createAccount : homeText.login}
+                  </button>
+                  {authError && <p className="error-text">{authError}</p>}
+                </form>
+              )}
+            </section>
+          )}
+        </div>
+      </header>
       <section className="home-shell">
         <section className="home-hero-card">
           <div className="home-title-row">
             <div>
-              <p className="eyebrow">Live strategy arena</p>
+              <p className="eyebrow">{homeText.arena}</p>
               <h1 className="sr-only">{t.title}</h1>
               <XahaWordmark />
-              <p>{t.subtitle}</p>
+              <p>{homeText.subtitle}</p>
             </div>
             <div className="season-pill">
-              <span>Playing now</span>
+              <span>{homeText.playingNow}</span>
               <strong>{playingCount}</strong>
             </div>
           </div>
 
           <div className="play-grid">
-            <PlayModeCard label="Play" subtitle="Ranked match - login required" meta="ELO" variant="primary" onClick={openRanked} />
-            <PlayModeCard label="Casual" subtitle="Unranked - no login needed" meta="Fast" onClick={openCasual} />
-            <PlayModeCard label="Play Computer" subtitle="Practice against 4 bot levels" meta="AI" onClick={openComputer} />
-            <PlayModeCard label="Play a Friend" subtitle="Create or join by room code" meta="Room" onClick={openFriend} />
+            <PlayModeCard label={homeText.play} subtitle={homeText.ranked} meta="ELO" variant="primary" onClick={openRanked} />
+            <PlayModeCard label={homeText.casual} subtitle={homeText.casualSub} meta="Fast" onClick={openCasual} />
+            <PlayModeCard label={homeText.computer} subtitle={homeText.computerSub} meta="AI" onClick={openComputer} />
+            <PlayModeCard label={homeText.friend} subtitle={homeText.friendSub} meta="Room" onClick={openFriend} />
           </div>
 
           {(modeMessage || searchMode) && (
@@ -609,7 +836,7 @@ export default function Home({ error }: Props) {
                     <img src={profilePictureUrl(profile.avatarId)} alt="" />
                   </span>
                   <div>
-                    <span className="profile-label">Profile</span>
+                    <span className="profile-label">{homeText.profile}</span>
                     <strong>{profile.displayName}</strong>
                     <small>@{profile.publicId} - {profile.email}</small>
                   </div>
@@ -617,8 +844,17 @@ export default function Home({ error }: Props) {
 
                 <div className="profile-stats">
                   <span>ELO {profile.elo}</span>
-                  <span>{profile.wins}W / {profile.losses}L</span>
+                  <span>{rankPlacement}</span>
                   <span>{winRate}% win rate</span>
+                </div>
+
+                <div className="recent-form">
+                  <span>{homeText.recentForm}</span>
+                  <div>
+                    {recentResults.length > 0 ? recentResults.map((match) => (
+                      <b key={match.matchId} className={match.result}>{match.result === "win" ? "W" : "L"}</b>
+                    )) : <small>No ranked games yet</small>}
+                  </div>
                 </div>
 
                 <div className="avatar-picker" aria-label="Profile pictures">
@@ -637,42 +873,42 @@ export default function Home({ error }: Props) {
 
                 {profileMessage && <p className="verify-warning">{profileMessage}</p>}
                 {!currentUser.emailVerified && <p className="verify-warning">Please verify your email before playing ranked.</p>}
-                <button className="secondary-button" onClick={() => void logout()}>
-                  Logout
-                </button>
+
+                <section className="match-history-card">
+                  <div className="match-history-head">
+                    <span>{homeText.history}</span>
+                    <button onClick={() => void refreshMatchHistory()}>Refresh</button>
+                  </div>
+                  {historyError ? (
+                    <p className="leaderboard-empty compact">{historyError}</p>
+                  ) : matchHistory.length === 0 ? (
+                    <p className="leaderboard-empty compact">{homeText.noHistory}</p>
+                  ) : (
+                    <div className="match-history-list">
+                      {matchHistory.slice(0, 5).map((match) => (
+                        <article key={match.matchId} className={`match-history-row ${match.result}`}>
+                          <strong>{match.result === "win" ? "WIN" : "LOSS"}</strong>
+                          <button className="history-opponent" onClick={() => setSelectedOpponent(match.players.find((player) => player.uid === match.opponentUid) ?? null)}>
+                            {match.opponentName}
+                          </button>
+                          <span className={match.eloDelta >= 0 ? "positive" : "negative"}>
+                            {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} ELO
+                          </span>
+                          <button onClick={() => setSelectedReplay(match)}>{homeText.replay}</button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
             ) : (
-              <section className="auth-panel" aria-label="Account">
+              <section className="profile-summary logged-out-summary" aria-label="Account">
                 <div className="account-card-heading">
-                  <span>Account</span>
-                  <strong>{authMode === "register" ? "Create profile" : "Welcome back"}</strong>
+                  <span>{homeText.account}</span>
+                  <strong>{homeText.login}</strong>
                 </div>
-                <p className="auth-muted">Login to play ranked and save your stats.</p>
-                {!authReady ? (
-                  <p className="verify-warning">{configError ?? "Firebase Auth is not configured yet."}</p>
-                ) : (
-                  <form className="auth-form" onSubmit={submitAuth}>
-                    <div className="auth-tabs">
-                      <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => setAuthMode("login")}>
-                        Login
-                      </button>
-                      <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => setAuthMode("register")}>
-                        Register
-                      </button>
-                    </div>
-
-                    {authMode === "register" && (
-                      <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Username / public ID" required />
-                    )}
-                    <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" type="email" required />
-                    <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" type="password" minLength={6} required />
-
-                    <button className="secondary-button" type="submit" disabled={authBusy}>
-                      {authBusy ? "Please wait..." : authMode === "register" ? "Create account" : "Login"}
-                    </button>
-                    {authError && <p className="error-text">{authError}</p>}
-                  </form>
-                )}
+                <p className="auth-muted">{homeText.loginSave}</p>
+                <button className="secondary-button" onClick={() => setAccountOpen(true)}>{homeText.login}</button>
               </section>
             )}
           </section>
@@ -680,17 +916,17 @@ export default function Home({ error }: Props) {
           <section className="side-leaderboard-card">
             <div className="side-leaderboard-head">
               <div>
-                <span>Leaderboard</span>
-                <strong>Top 50</strong>
+                <span>{homeText.leaderboard}</span>
+                <strong>{homeText.top50}</strong>
               </div>
-              <button onClick={() => void refreshLeaderboard()} disabled={leaderboardLoading}>Refresh</button>
+              <button onClick={() => void refreshLeaderboard()} disabled={leaderboardLoading}>{homeText.refresh}</button>
             </div>
 
             {currentUser && currentRank && (
               <div className="my-rank-card">
-                <span>Your rank</span>
+                <span>{homeText.profile}</span>
                 <strong>#{currentRank.rank}</strong>
-                <small>{currentRank.elo} ELO - {currentRank.wins}W / {currentRank.losses}L</small>
+                <small>{rankPlacement} - {currentRank.elo} ELO</small>
               </div>
             )}
 
@@ -722,6 +958,26 @@ export default function Home({ error }: Props) {
           </section>
         </aside>
       </section>
+
+      {selectedReplay && <ReplayPreview match={selectedReplay} onClose={() => setSelectedReplay(null)} />}
+      {selectedOpponent && (
+        <section className="home-modal-backdrop profile-preview-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setSelectedOpponent(null);
+        }}>
+          <div className="home-modal profile-preview-modal" role="dialog" aria-modal="true">
+            <button className="modal-close-button" onClick={() => setSelectedOpponent(null)}>x</button>
+            <div className="profile-preview-body">
+              <span className={`profile-avatar ${selectedOpponent.profileColor}`}>
+                <img src={profilePictureUrl(selectedOpponent.avatarId)} alt="" />
+              </span>
+              <span className="profile-label">{homeText.profile}</span>
+              <strong>{selectedOpponent.displayName}</strong>
+              <small>@{selectedOpponent.publicId}</small>
+              <b>ELO {selectedOpponent.startingElo}</b>
+            </div>
+          </div>
+        </section>
+      )}
 
       {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer") && (
         <section className="home-modal-backdrop" onMouseDown={(event) => {

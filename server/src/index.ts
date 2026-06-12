@@ -23,7 +23,7 @@ import {
 } from "./game/rooms";
 import { applyGiveUp, applyPawnMove, applyTurnTimeout, applyWallPlacement, finishGame, getLegalPawnMoves } from "./game/rules";
 import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, TimeControlId, Wall } from "../../shared/types";
-import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getLeaderboardRank, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
+import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getLeaderboardRank, getRankedMatch, getRankedStatus, getUserMatchHistory, verifyBearerToken } from "./ranked";
 import { resolveTimeControl } from "../../shared/timeControls";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -284,6 +284,16 @@ app.get("/leaderboard", async (req, res) => {
   }
 });
 
+app.get("/me/history", async (req, res) => {
+  try {
+    const decoded = await verifyBearerToken(req.headers.authorization);
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 8;
+    res.json({ matches: await getUserMatchHistory(decoded.uid, limit) });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Could not load match history." });
+  }
+});
+
 app.post("/ranked/enqueue", async (req, res) => {
   try {
     const decoded = await verifyBearerToken(req.headers.authorization);
@@ -315,9 +325,9 @@ app.get("/ranked/status", async (req, res) => {
 app.post("/ranked/finalize", async (req, res) => {
   try {
     const decoded = await verifyBearerToken(req.headers.authorization);
-    const { matchId, winnerUid, loserUid } = req.body as { matchId?: string; winnerUid?: string; loserUid?: string };
+    const { matchId, winnerUid, loserUid, moveHistory } = req.body as { matchId?: string; winnerUid?: string; loserUid?: string; moveHistory?: unknown };
     if (!matchId || !winnerUid || !loserUid) throw new Error("Missing ranked result.");
-    res.json(await finalizeRankedMatch(decoded, matchId, winnerUid, loserUid));
+    res.json(await finalizeRankedMatch(decoded, matchId, winnerUid, loserUid, { moveHistory: Array.isArray(moveHistory) ? moveHistory : [] }));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Could not finalize ranked match." });
   }

@@ -1,6 +1,6 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import type { DocumentData, FieldValue, Timestamp, Transaction } from "firebase-admin/firestore";
-import type { TimeControlId } from "../../shared/types";
+import type { MoveRecord, TimeControlId } from "../../shared/types";
 import { resolveTimeControl } from "../../shared/timeControls";
 import { adminAuth, adminDb, adminFieldValue } from "./firebaseAdmin";
 
@@ -62,6 +62,40 @@ type LeaderboardPlayer = {
   rankedMatches: number;
   winRate: number;
 };
+
+export type RankedHistoryInput = {
+  moveHistory?: MoveRecord[];
+};
+
+type MatchHistoryRecord = {
+  matchId: string;
+  createdAt: FieldValue | Timestamp;
+  finishedAt: FieldValue | Timestamp;
+  result: "win" | "loss";
+  opponentUid: string;
+  opponentName: string;
+  opponentPublicId: string;
+  eloBefore: number;
+  eloAfter: number;
+  eloDelta: number;
+  moves: MoveRecord[];
+  players: RankedPlayer[];
+  timeControlId: TimeControlId;
+};
+
+function sanitizeMoveHistory(moves: MoveRecord[] | undefined): MoveRecord[] {
+  if (!Array.isArray(moves)) return [];
+  return moves.slice(0, 300).map((move, index) => ({
+    turn: Number.isFinite(move.turn) ? Number(move.turn) : index + 1,
+    playerId: move.playerId === "P2" ? "P2" : "P1",
+    kind: move.kind === "wall" || move.kind === "giveup" || move.kind === "timeout" ? move.kind : "pawn",
+    text: String(move.text ?? "").slice(0, 40),
+    ...(move.to && Number.isInteger(move.to.row) && Number.isInteger(move.to.col) ? { to: { row: move.to.row, col: move.to.col } } : {}),
+    ...(move.wall && Number.isInteger(move.wall.row) && Number.isInteger(move.wall.col) && (move.wall.orientation === "H" || move.wall.orientation === "V")
+      ? { wall: { row: move.wall.row, col: move.wall.col, orientation: move.wall.orientation, owner: move.wall.owner === "P2" ? "P2" : "P1" } }
+      : {}),
+  }));
+}
 
 export async function verifyBearerToken(header: string | undefined): Promise<DecodedIdToken> {
   const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
@@ -344,7 +378,20 @@ export async function getLeaderboardRank(uid: string): Promise<(LeaderboardPlaye
   };
 }
 
-export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: string, winnerUid: string, loserUid: string) {
+export async function getUserMatchHistory(uid: string, limit = 8): Promise<MatchHistoryRecord[]> {
+  const safeLimit = Math.max(1, Math.min(20, Math.floor(limit)));
+  const snapshot = await adminDb
+    .collection("users")
+    .doc(uid)
+    .collection("matchHistory")
+    .orderBy("finishedAt", "desc")
+    .limit(safeLimit)
+    .get();
+
+  return snapshot.docs.map((doc) => doc.data() as MatchHistoryRecord);
+}
+
+export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: string, winnerUid: string, loserUid: string, historyInput: RankedHistoryInput = {}) {
   const matchRef = adminDb.collection("matches").doc(matchId);
 
   return adminDb.runTransaction(async (transaction: Transaction) => {
@@ -377,6 +424,15 @@ export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: stri
     const loserNewElo = newElo(loser.startingElo, winner.startingElo, 0);
     const winnerDelta = winnerNewElo - winner.startingElo;
     const loserDelta = loserNewElo - loser.startingElo;
+    const moves = sanitizeMoveHistory(historyInput.moveHistory);
+    const historyBase = {
+      matchId,
+      createdAt: match.createdAt,
+      finishedAt: adminFieldValue.serverTimestamp(),
+      moves,
+      players: match.players,
+      timeControlId: match.timeControlId,
+    };
 
     transaction.update(adminDb.collection("users").doc(winnerUid), {
       elo: winnerNewElo,
@@ -397,6 +453,26 @@ export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: stri
       eloApplied: true,
       eloChange: { winner: winnerDelta, loser: loserDelta },
       finishedAt: adminFieldValue.serverTimestamp(),
+    });
+    transaction.set(adminDb.collection("users").doc(winnerUid).collection("matchHistory").doc(matchId), {
+      ...historyBase,
+      result: "win",
+      opponentUid: loser.uid,
+      opponentName: loser.displayName,
+      opponentPublicId: loser.publicId,
+      eloBefore: winner.startingElo,
+      eloAfter: winnerNewElo,
+      eloDelta: winnerDelta,
+    });
+    transaction.set(adminDb.collection("users").doc(loserUid).collection("matchHistory").doc(matchId), {
+      ...historyBase,
+      result: "loss",
+      opponentUid: winner.uid,
+      opponentName: winner.displayName,
+      opponentPublicId: winner.publicId,
+      eloBefore: loser.startingElo,
+      eloAfter: loserNewElo,
+      eloDelta: loserDelta,
     });
 
     return {

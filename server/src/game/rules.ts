@@ -20,13 +20,14 @@ function switchTurn(game: GameState): void {
   game.currentTurn = otherPlayer(game.currentTurn);
 }
 
-function addMoveRecord(game: GameState, playerId: PlayerId, kind: "pawn" | "wall" | "giveup" | "timeout", text: string): void {
+function addMoveRecord(game: GameState, playerId: PlayerId, kind: "pawn" | "wall" | "giveup" | "timeout", text: string, detail?: { to?: Position; wall?: Wall }): void {
   if (!game.moveHistory) game.moveHistory = [];
   game.moveHistory.push({
     turn: game.moveHistory.length + 1,
     playerId,
     kind,
     text,
+    ...detail,
   });
 }
 
@@ -173,7 +174,7 @@ export function applyPawnMove(game: GameState, payload: MovePawnPayload): RuleRe
   }
 
   game.players[playerId].position = to;
-  addMoveRecord(game, playerId, "pawn", positionToNotation(to));
+  addMoveRecord(game, playerId, "pawn", positionToNotation(to), { to: { ...to } });
   checkWinner(game);
   if (!game.winner) switchTurn(game);
 
@@ -225,7 +226,7 @@ export function applyWallPlacement(game: GameState, payload: PlaceWallPayload): 
   }
 
   game.players[playerId].wallsLeft -= 1;
-  addMoveRecord(game, playerId, "wall", wallToNotation(wall));
+  addMoveRecord(game, playerId, "wall", wallToNotation(wall), { wall: { ...wall } });
   switchTurn(game);
 
   return { ok: true };
