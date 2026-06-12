@@ -11,6 +11,7 @@ type Props = {
   dragPoint: DragPoint;
   onCellClick: (position: Position) => void;
   onWallClick: (wall: Wall) => void;
+  onWinAnimationComplete?: () => void;
 };
 
 function samePosition(a: Position, b: Position): boolean {
@@ -229,7 +230,7 @@ const HOTSPOTS = [
   "left-bottom",
 ];
 
-export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick }: Props) {
+export default function Board({ game, playerId, draggedWall, dragPoint, onCellClick, onWallClick, onWinAnimationComplete }: Props) {
   const [previewWall, setPreviewWall] = useState<Wall | null>(null);
   const wallHotspotPointerType = useRef<string | null>(null);
   const previousPositions = useRef<Record<PlayerId, Position>>({
@@ -247,6 +248,31 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
     () => game.walls.map((wall) => rotateWallForPlayer(wall, playerId, game.boardSize)),
     [game.walls, game.boardSize, playerId]
   );
+
+  const winnerDisplayPosition = useMemo(() => {
+    if (!game.winner) return null;
+    return rotatePositionForPlayer(game.players[game.winner].position, playerId, game.boardSize);
+  }, [game.boardSize, game.players, game.winner, playerId]);
+
+  const winBurstSquares = useMemo(() => {
+    if (!winnerDisplayPosition) return [];
+
+    return Array.from({ length: game.boardSize * game.boardSize }, (_, index) => {
+      const row = Math.floor(index / game.boardSize);
+      const col = index % game.boardSize;
+      const distance = Math.abs(row - winnerDisplayPosition.row) + Math.abs(col - winnerDisplayPosition.col);
+      const diagonalLift = (game.boardSize - 1 - row + col) * 9;
+      const delay = distance * 64 + diagonalLift;
+      return { row, col, delay };
+    });
+  }, [game.boardSize, winnerDisplayPosition]);
+
+  useEffect(() => {
+    if (!game.winner || winBurstSquares.length === 0 || !onWinAnimationComplete) return undefined;
+    const maxDelay = Math.max(...winBurstSquares.map((square) => square.delay));
+    const timer = window.setTimeout(onWinAnimationComplete, maxDelay + 920);
+    return () => window.clearTimeout(timer);
+  }, [game.winner, onWinAnimationComplete, winBurstSquares]);
 
   useEffect(() => {
     if (!isMyTurn || !draggedWall || !dragPoint) {
@@ -381,5 +407,24 @@ export default function Board({ game, playerId, draggedWall, dragPoint, onCellCl
 
   const winColor = winnerColor(game);
 
-  return <section className={`board ${draggedWall ? "wall-dragging" : ""} ${isMyTurn ? "my-turn" : "not-my-turn"} player-color-${game.players[playerId].color} ${winColor ? `winner-${winColor}` : ""}`}>{cells}</section>;
+  return (
+    <section className={`board ${draggedWall ? "wall-dragging" : ""} ${isMyTurn ? "my-turn" : "not-my-turn"} player-color-${game.players[playerId].color} ${winColor ? `winner-${winColor}` : ""}`}>
+      {cells}
+      {game.winner && winnerDisplayPosition && (
+        <div className={`win-stagger-grid ${winColor ? `win-stagger-${winColor}` : ""}`} aria-hidden="true">
+          {winBurstSquares.map((square) => (
+            <span
+              key={`${square.row}-${square.col}`}
+              className="win-stagger-square"
+              style={{
+                gridRow: square.row + 1,
+                gridColumn: square.col + 1,
+                "--win-delay": `${square.delay}ms`,
+              } as CSSProperties}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }

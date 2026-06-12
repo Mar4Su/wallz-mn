@@ -2,7 +2,7 @@ import type { ChatMessage, GameState, Orientation, PlayerColor, PlayerId, Positi
 import Board from "../components/Board";
 import { socket } from "../socket";
 import { t } from "../i18n";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { updateMatchPresence } from "../auth/matchPresence";
 import { finalizeRanked } from "../rankedApi";
@@ -83,6 +83,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   const [now, setNow] = useState(() => Date.now());
   const [rankedResult, setRankedResult] = useState<RankedFinalizeResponse | null>(null);
   const [chatText, setChatText] = useState("");
+  const [showResultOverlay, setShowResultOverlay] = useState(game.status === "finished");
   const rankedFinalizeRef = useRef<string | null>(null);
   const chatListRef = useRef<HTMLDivElement | null>(null);
 
@@ -109,6 +110,9 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   const disconnectSeconds = clocks?.disconnectEndsAt ? Math.max(0, Math.ceil((clocks.disconnectEndsAt - now) / 1000)) : 0;
   const opponentDisconnected = clocks?.disconnectedPlayer === opponentId && disconnectSeconds > 0;
   const chatMessages = game.chatMessages ?? [];
+  const handleWinAnimationComplete = useCallback(() => {
+    setShowResultOverlay(true);
+  }, []);
 
   function onCellClick(position: Position) {
     if (!isMyTurn) return;
@@ -213,6 +217,15 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
     const timer = window.setTimeout(() => setShowMatchIntro(false), 2200);
     return () => window.clearTimeout(timer);
   }, [game.status, roomId]);
+
+  useEffect(() => {
+    if (game.status !== "finished") {
+      setShowResultOverlay(false);
+      return;
+    }
+
+    setShowResultOverlay(false);
+  }, [game.status, game.winner, roomId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -361,7 +374,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
       )}
 
 
-      {game.status === "finished" && (
+      {game.status === "finished" && showResultOverlay && (
         <section className={`result-overlay ${didWin ? "win" : "lose"}`}>
           <div className="result-card">
             <div className="result-versus">
@@ -456,6 +469,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
           dragPoint={dragPoint}
           onCellClick={onCellClick}
           onWallClick={onWallClick}
+          onWinAnimationComplete={handleWinAnimationComplete}
         />
 
         <section className="wall-tray compact-wall-tray mobile-wall-tray" aria-label="Wall tray">
