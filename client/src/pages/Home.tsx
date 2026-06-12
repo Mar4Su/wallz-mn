@@ -7,6 +7,8 @@ import { useAuth } from "../auth/AuthContext";
 import { canUseRankedMatchmaking } from "../auth/rankedAccess";
 import type { ClientPlayerProfile, TimeControlId } from "../../../shared/types";
 import { cancelRanked, cancelRankedWithToken, enqueueRanked, getRankedStatus } from "../rankedApi";
+import { getLeaderboard } from "../leaderboardApi";
+import type { LeaderboardPlayer } from "../leaderboardApi";
 import { PROFILE_PICTURE_IDS, profilePictureUrl } from "../profilePictures";
 import type { AiDifficulty } from "../../../shared/types";
 import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../../../shared/timeControls";
@@ -15,7 +17,7 @@ type Props = {
   error: string | null;
 };
 
-type PlayMode = "ranked" | "casual" | "computer" | "friend";
+type PlayMode = "ranked" | "casual" | "computer" | "friend" | "leaderboard";
 type SearchMode = "ranked" | "casual" | null;
 const AI_DIFFICULTIES: Array<{ id: AiDifficulty; label: string; description: string }> = [
   { id: "easy", label: "Easy", description: "Learns the board, rare walls" },
@@ -166,6 +168,9 @@ export default function Home({ error }: Props) {
   const [playingCount, setPlayingCount] = useState(0);
   const [selectedTimeControl, setSelectedTimeControl] = useState<TimeControlId>(DEFAULT_TIME_CONTROL_ID);
   const [searchTimeControl, setSearchTimeControl] = useState<TimeControlId>(DEFAULT_TIME_CONTROL_ID);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardPlayer[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const rankedCancelTokenRef = useRef<string | null>(null);
   const rankedSearchingRef = useRef(false);
   const { currentUser, profile, loading, authReady, configError, signupWithEmail, loginWithEmail, logout, updateAvatarId } = useAuth();
@@ -279,6 +284,22 @@ export default function Home({ error }: Props) {
     setSearchMode(null);
     setModeMessage(null);
     setActivePanel("friend");
+  }
+
+  async function openLeaderboard() {
+    setSearchMode(null);
+    setModeMessage(null);
+    setActivePanel("leaderboard");
+    setLeaderboardError(null);
+    setLeaderboardLoading(true);
+
+    try {
+      setLeaderboard(await getLeaderboard(25));
+    } catch (err) {
+      setLeaderboardError(err instanceof Error ? err.message : "Could not load leaderboard.");
+    } finally {
+      setLeaderboardLoading(false);
+    }
   }
 
   async function cancelSearch() {
@@ -424,6 +445,11 @@ export default function Home({ error }: Props) {
             <PlayModeCard label="Play a Friend" subtitle="Create or join by room code" meta="Room" onClick={openFriend} />
           </div>
 
+          <button className="leaderboard-strip" onClick={() => void openLeaderboard()}>
+            <span>Leaderboard</span>
+            <strong>Top ranked players</strong>
+          </button>
+
           {(modeMessage || searchMode) && (
             <section className="mode-status-panel">
               <p>{searchMode === "ranked" ? `${modeMessage ?? "Searching for ranked opponent..."} ${rankedElapsed}s` : modeMessage ?? "Searching casual match..."}</p>
@@ -519,7 +545,7 @@ export default function Home({ error }: Props) {
         </aside>
       </section>
 
-      {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer") && (
+      {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer" || activePanel === "leaderboard") && (
         <section className="home-modal-backdrop" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !searchMode) setActivePanel(null);
         }}>
@@ -620,6 +646,39 @@ export default function Home({ error }: Props) {
                 <button className="primary-button" onClick={() => startComputer()}>
                   Start {AI_DIFFICULTIES.find((difficulty) => difficulty.id === aiDifficulty)?.label ?? "Normal"}
                 </button>
+              </>
+            )}
+
+            {activePanel === "leaderboard" && (
+              <>
+                <div className="modal-heading">
+                  <span>Leaderboard</span>
+                  <strong>Top ranked players</strong>
+                </div>
+
+                <div className="leaderboard-list">
+                  {leaderboardLoading ? (
+                    <p className="leaderboard-empty">Loading leaderboard...</p>
+                  ) : leaderboardError ? (
+                    <p className="leaderboard-empty">{leaderboardError}</p>
+                  ) : leaderboard.length === 0 ? (
+                    <p className="leaderboard-empty">No ranked players yet.</p>
+                  ) : (
+                    leaderboard.map((player) => (
+                      <div key={player.uid} className="leaderboard-row">
+                        <span className="leaderboard-rank">#{player.rank}</span>
+                        <span className={`leaderboard-avatar ${player.profileColor}`}>
+                          <img src={profilePictureUrl(player.avatarId)} alt="" />
+                        </span>
+                        <div>
+                          <strong>{player.displayName}</strong>
+                          <small>@{player.publicId} · {player.wins}W / {player.losses}L · {player.winRate}%</small>
+                        </div>
+                        <b>{player.elo}</b>
+                      </div>
+                    ))
+                  )}
+                </div>
               </>
             )}
           </div>

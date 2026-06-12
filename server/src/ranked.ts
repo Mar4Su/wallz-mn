@@ -279,6 +279,36 @@ export async function getRankedMatch(matchId: string): Promise<RankedMatchDoc | 
   return snapshot.exists ? (snapshot.data() as RankedMatchDoc) : null;
 }
 
+export async function getLeaderboard(limit = 25) {
+  const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+  const snapshot = await adminDb
+    .collection("users")
+    .orderBy("elo", "desc")
+    .limit(safeLimit)
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const user = doc.data();
+    const wins = Number(user.wins ?? 0);
+    const losses = Number(user.losses ?? 0);
+    const total = wins + losses;
+
+    return {
+      uid: String(user.uid ?? doc.id),
+      displayName: String(user.displayName ?? user.publicId ?? "Player"),
+      publicId: String(user.publicId ?? doc.id.slice(0, 8)),
+      avatarId: String(user.avatarId ?? DEFAULT_AVATAR_ID),
+      profileColor: String(user.profileColor ?? "blue"),
+      elo: Number(user.elo ?? 1000),
+      wins,
+      losses,
+      rankedMatches: Number(user.rankedMatches ?? total),
+      winRate: total === 0 ? 0 : Math.round((wins / total) * 100),
+    };
+  }).sort((a, b) => b.elo - a.elo || b.wins - a.wins || a.losses - b.losses)
+    .map((player, index) => ({ ...player, rank: index + 1 }));
+}
+
 export async function finalizeRankedMatch(decoded: DecodedIdToken, matchId: string, winnerUid: string, loserUid: string) {
   const matchRef = adminDb.collection("matches").doc(matchId);
 

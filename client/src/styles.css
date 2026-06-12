@@ -3010,6 +3010,35 @@ body::before {
   line-height: 1.35;
 }
 
+.leaderboard-strip {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 211, 106, 0.24);
+  color: #f8fbff;
+  background:
+    linear-gradient(135deg, rgba(255, 211, 106, 0.11), rgba(53, 232, 214, 0.07)),
+    rgba(255, 255, 255, 0.045);
+}
+
+.leaderboard-strip span {
+  color: #ffd36a;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.leaderboard-strip strong {
+  font-size: 17px;
+}
+
 .home-v2 .mode-status-panel,
 .home-v2 .friend-room-panel {
   margin-top: 12px;
@@ -3264,6 +3293,77 @@ body::before {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.leaderboard-list {
+  max-height: min(56vh, 520px);
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 3px;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 46px 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.leaderboard-rank {
+  color: #ffd36a;
+  font-weight: 1000;
+}
+
+.leaderboard-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.leaderboard-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.leaderboard-row strong {
+  display: block;
+  color: #f8fbff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-row small {
+  display: block;
+  margin-top: 2px;
+  color: #aeb8c7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-row b {
+  color: #6affef;
+  font-size: 20px;
+}
+
+.leaderboard-empty {
+  margin: 0;
+  padding: 22px;
+  border-radius: 14px;
+  color: #aeb8c7;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.045);
+}
+
 @media (max-width: 900px) {
   .home-v2 .home-shell {
     grid-template-columns: 1fr;
@@ -3321,6 +3421,21 @@ body::before {
     margin-top: 3px;
     font-size: 12px;
     line-height: 1.25;
+  }
+
+  .leaderboard-strip {
+    display: grid;
+    justify-items: start;
+    padding: 12px;
+  }
+
+  .leaderboard-row {
+    grid-template-columns: 38px 38px minmax(0, 1fr);
+  }
+
+  .leaderboard-row b {
+    grid-column: 3;
+    font-size: 16px;
   }
 
   .home-v2 .home-arena-3d {

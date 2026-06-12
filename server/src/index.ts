@@ -23,7 +23,7 @@ import {
 } from "./game/rooms";
 import { applyGiveUp, applyPawnMove, applyTurnTimeout, applyWallPlacement, finishGame, getLegalPawnMoves } from "./game/rules";
 import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, TimeControlId, Wall } from "../../shared/types";
-import { cancelRanked, enqueueRanked, finalizeRankedMatch, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
+import { cancelRanked, enqueueRanked, finalizeRankedMatch, getLeaderboard, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
 import { resolveTimeControl } from "../../shared/timeControls";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -270,6 +270,15 @@ app.use(express.json());
 
 app.get("/", (_req, res) => res.send("Wallz MN backend is running"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+app.get("/leaderboard", async (req, res) => {
+  try {
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 25;
+    res.json({ players: await getLeaderboard(limit) });
+  } catch {
+    res.status(500).json({ error: "Could not load leaderboard." });
+  }
+});
 
 app.post("/ranked/enqueue", async (req, res) => {
   try {
