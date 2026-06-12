@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
+import { animate, stagger } from "animejs";
 import { socket } from "../socket";
 import { t } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
@@ -26,7 +27,7 @@ const AI_DIFFICULTIES: Array<{ id: AiDifficulty; label: string; description: str
   { id: "pro", label: "Pro", description: "Maximum path control" },
 ];
 
-function HomeArena3D() {
+function HomeBackground3D() {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -35,57 +36,104 @@ function HomeArena3D() {
     const mountElement = mount;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    camera.position.set(4.5, 6, 7.5);
+    scene.fog = new THREE.FogExp2(0x05070c, 0.042);
+    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
+    camera.position.set(7.5, 8, 11);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     mountElement.appendChild(renderer.domElement);
 
-    const group = new THREE.Group();
-    scene.add(group);
+    const board = new THREE.Group();
+    board.rotation.x = -0.08;
+    scene.add(board);
 
-    const tileMaterial = new THREE.MeshStandardMaterial({ color: 0x18212d, roughness: 0.56, metalness: 0.12 });
-    const goalMaterial = new THREE.MeshStandardMaterial({ color: 0x1faea5, emissive: 0x0b4a47, roughness: 0.48 });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xffcc5c, emissive: 0x4a2600, roughness: 0.38 });
-    const blueMaterial = new THREE.MeshStandardMaterial({ color: 0x51fff1, emissive: 0x064a47, roughness: 0.34 });
-    const redMaterial = new THREE.MeshStandardMaterial({ color: 0xff607d, emissive: 0x4a0714, roughness: 0.34 });
+    const tileMaterial = new THREE.MeshStandardMaterial({ color: 0x151f2b, roughness: 0.52, metalness: 0.18 });
+    const cyanTileMaterial = new THREE.MeshStandardMaterial({ color: 0x164b4c, emissive: 0x0a3435, roughness: 0.42, metalness: 0.2 });
+    const redTileMaterial = new THREE.MeshStandardMaterial({ color: 0x4d1d2a, emissive: 0x2b0b13, roughness: 0.42, metalness: 0.2 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xffcf65, emissive: 0x553300, roughness: 0.34, metalness: 0.18 });
+    const blueMaterial = new THREE.MeshStandardMaterial({ color: 0x5efff2, emissive: 0x0a5954, roughness: 0.28, metalness: 0.12 });
+    const redMaterial = new THREE.MeshStandardMaterial({ color: 0xff6684, emissive: 0x5b0a1a, roughness: 0.28, metalness: 0.12 });
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x6affef, transparent: true, opacity: 0.18 });
+    const particleMaterial = new THREE.PointsMaterial({ color: 0x8ffef6, size: 0.035, transparent: true, opacity: 0.62, depthWrite: false });
 
-    const tileGeometry = new THREE.BoxGeometry(0.72, 0.12, 0.72);
-    for (let row = 0; row < 5; row += 1) {
-      for (let col = 0; col < 5; col += 1) {
-        const tile = new THREE.Mesh(tileGeometry, row === 0 || row === 4 ? goalMaterial : tileMaterial);
-        tile.position.set((col - 2) * 0.86, 0, (row - 2) * 0.86);
-        group.add(tile);
+    const tileGeometry = new THREE.BoxGeometry(0.72, 0.08, 0.72);
+    const wallGeometry = new THREE.BoxGeometry(1.56, 0.18, 0.16);
+    const pawnGeometry = new THREE.SphereGeometry(0.24, 32, 16);
+    const tiles: THREE.Mesh[] = [];
+    const walls: THREE.Mesh[] = [];
+
+    for (let row = 0; row < 9; row += 1) {
+      for (let col = 0; col < 9; col += 1) {
+        const material = row === 0 ? redTileMaterial : row === 8 ? cyanTileMaterial : tileMaterial;
+        const tile = new THREE.Mesh(tileGeometry, material);
+        tile.position.set((col - 4) * 0.86, Math.sin((row + col) * 0.8) * 0.018, (row - 4) * 0.86);
+        board.add(tile);
+        tiles.push(tile);
       }
     }
 
-    const wallGeometry = new THREE.BoxGeometry(1.5, 0.22, 0.18);
     [
-      [-0.9, 0.22, -0.45, 0],
-      [0.92, 0.22, 0.5, Math.PI / 2],
-      [0.1, 0.22, 1.35, 0],
+      [-2.5, 0.18, -1.22, 0],
+      [-0.88, 0.18, 0.47, Math.PI / 2],
+      [1.22, 0.18, 1.36, 0],
+      [2.58, 0.18, -0.58, Math.PI / 2],
+      [0.1, 0.18, -2.18, 0],
+      [-2.15, 0.18, 2.55, Math.PI / 2],
     ].forEach(([x, y, z, rotation]) => {
       const wall = new THREE.Mesh(wallGeometry, wallMaterial);
       wall.position.set(x, y, z);
       wall.rotation.y = rotation;
-      group.add(wall);
+      board.add(wall);
+      walls.push(wall);
     });
 
-    const pawnGeometry = new THREE.SphereGeometry(0.24, 32, 16);
     const bluePawn = new THREE.Mesh(pawnGeometry, blueMaterial);
-    bluePawn.position.set(-1.72, 0.38, 1.72);
-    group.add(bluePawn);
+    bluePawn.position.set(-3.42, 0.36, 3.42);
+    board.add(bluePawn);
 
     const redPawn = new THREE.Mesh(pawnGeometry, redMaterial);
-    redPawn.position.set(1.72, 0.38, -1.72);
-    group.add(redPawn);
+    redPawn.position.set(3.42, 0.36, -3.42);
+    board.add(redPawn);
 
-    scene.add(new THREE.HemisphereLight(0xb9fff9, 0x10131a, 2.3));
-    const keyLight = new THREE.DirectionalLight(0xfff1bc, 2.1);
-    keyLight.position.set(4, 7, 5);
+    const gridLines = new THREE.Group();
+    for (let i = -4; i <= 4; i += 1) {
+      const h = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.2, 0.02, i * 0.86), new THREE.Vector3(4.2, 0.02, i * 0.86)]);
+      const v = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i * 0.86, 0.02, -4.2), new THREE.Vector3(i * 0.86, 0.02, 4.2)]);
+      gridLines.add(new THREE.Line(h, lineMaterial), new THREE.Line(v, lineMaterial));
+    }
+    board.add(gridLines);
+
+    const particlePositions = new Float32Array(260 * 3);
+    for (let i = 0; i < 260; i += 1) {
+      particlePositions[i * 3] = (Math.random() - 0.5) * 18;
+      particlePositions[i * 3 + 1] = Math.random() * 5.5 + 0.4;
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 14;
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
+
+    scene.add(new THREE.HemisphereLight(0xb9fff9, 0x090b10, 2.5));
+    const keyLight = new THREE.DirectionalLight(0xfff1bc, 2.35);
+    keyLight.position.set(5, 8, 5);
     scene.add(keyLight);
+    const cyanLight = new THREE.PointLight(0x35e8d6, 18, 18);
+    cyanLight.position.set(-4.5, 2.3, 4.2);
+    scene.add(cyanLight);
+    const redLight = new THREE.PointLight(0xff5d7a, 12, 16);
+    redLight.position.set(4.2, 2.3, -3.8);
+    scene.add(redLight);
+
+    const pointer = { x: 0, y: 0 };
+    function handlePointerMove(event: PointerEvent) {
+      pointer.x = (event.clientX / Math.max(1, window.innerWidth) - 0.5) * 2;
+      pointer.y = (event.clientY / Math.max(1, window.innerHeight) - 0.5) * 2;
+    }
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
 
     function resize() {
       const rect = mountElement.getBoundingClientRect();
@@ -100,10 +148,19 @@ function HomeArena3D() {
     let animationId = 0;
     function animate() {
       frame += 0.01;
-      group.rotation.y = -0.62 + Math.sin(frame) * 0.08;
-      group.rotation.x = -0.2 + Math.sin(frame * 0.8) * 0.025;
+      board.rotation.y = -0.68 + Math.sin(frame) * 0.045 + pointer.x * 0.1;
+      board.rotation.x = -0.2 + Math.sin(frame * 0.8) * 0.018 - pointer.y * 0.035;
+      board.position.x = pointer.x * 0.26;
+      board.position.y = -0.2 + pointer.y * -0.08;
+      particles.rotation.y += 0.0009;
       bluePawn.position.y = 0.38 + Math.sin(frame * 2.2) * 0.05;
       redPawn.position.y = 0.38 + Math.cos(frame * 2.1) * 0.05;
+      walls.forEach((wall, index) => {
+        wall.position.y = 0.18 + Math.sin(frame * 1.2 + index) * 0.018;
+      });
+      tiles.forEach((tile, index) => {
+        tile.position.y += Math.sin(frame * 1.7 + index * 0.13) * 0.00045;
+      });
       renderer.render(scene, camera);
       animationId = window.requestAnimationFrame(animate);
     }
@@ -115,17 +172,27 @@ function HomeArena3D() {
 
     return () => {
       observer.disconnect();
+      window.removeEventListener("pointermove", handlePointerMove);
       window.cancelAnimationFrame(animationId);
       renderer.dispose();
       tileGeometry.dispose();
       wallGeometry.dispose();
       pawnGeometry.dispose();
+      particleGeometry.dispose();
+      tileMaterial.dispose();
+      cyanTileMaterial.dispose();
+      redTileMaterial.dispose();
+      wallMaterial.dispose();
+      blueMaterial.dispose();
+      redMaterial.dispose();
+      lineMaterial.dispose();
+      particleMaterial.dispose();
       mountElement.removeChild(renderer.domElement);
     };
   }, []);
 
   return (
-    <div className="home-arena-3d">
+    <div className="home-background-3d" aria-hidden="true">
       <div ref={mountRef} className="home-arena-canvas" />
     </div>
   );
@@ -160,8 +227,27 @@ type PlayModeCardProps = {
 };
 
 function PlayModeCard({ label, subtitle, meta, variant, onClick }: PlayModeCardProps) {
+  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty("--mx", `${event.clientX - rect.left}px`);
+    event.currentTarget.style.setProperty("--my", `${event.clientY - rect.top}px`);
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    animate(event.currentTarget, {
+      scale: [1, 0.965, 1],
+      duration: 420,
+      ease: "outElastic(1, .65)",
+    });
+  }
+
   return (
-    <button className={`play-mode-card ${variant === "primary" ? "primary-mode" : ""}`} onClick={onClick}>
+    <button
+      className={`play-mode-card ${variant === "primary" ? "primary-mode" : ""}`}
+      onClick={onClick}
+      onPointerMove={handlePointerMove}
+      onPointerDown={handlePointerDown}
+    >
       {meta && <em>{meta}</em>}
       <span>{label}</span>
       <small>{subtitle}</small>
@@ -444,8 +530,38 @@ export default function Home({ error }: Props) {
     void refreshLeaderboard();
   }, [currentUser?.uid]);
 
+  useEffect(() => {
+    const animations = [
+      animate(".home-v2 .xaha-wordmark", {
+        opacity: [0, 1],
+        translateY: [22, 0],
+        scale: [0.96, 1],
+        duration: 900,
+        ease: "outCubic",
+      }),
+      animate(".home-v2 .play-mode-card", {
+        opacity: [0, 1],
+        translateY: [34, 0],
+        rotateX: [18, 0],
+        delay: stagger(95),
+        duration: 820,
+        ease: "outBack(1.6)",
+      }),
+      animate(".home-v2 .profile-card-v2, .home-v2 .side-leaderboard-card", {
+        opacity: [0, 1],
+        translateX: [34, 0],
+        delay: stagger(120),
+        duration: 760,
+        ease: "outCubic",
+      }),
+    ];
+
+    return () => animations.forEach((animation) => animation.revert());
+  }, []);
+
   return (
     <main className="home home-v2">
+      <HomeBackground3D />
       <section className="home-shell">
         <section className="home-hero-card">
           <div className="home-title-row">
@@ -460,8 +576,6 @@ export default function Home({ error }: Props) {
               <strong>{playingCount}</strong>
             </div>
           </div>
-
-          <HomeArena3D />
 
           <div className="play-grid">
             <PlayModeCard label="Play" subtitle="Ranked match - login required" meta="ELO" variant="primary" onClick={openRanked} />

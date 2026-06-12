@@ -3,6 +3,7 @@ import Board from "../components/Board";
 import { socket } from "../socket";
 import { t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { animate, stagger } from "animejs";
 import { useAuth } from "../auth/AuthContext";
 import { updateMatchPresence } from "../auth/matchPresence";
 import { finalizeRanked } from "../rankedApi";
@@ -235,6 +236,69 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
 
     setShowResultOverlay(false);
   }, [game.status, game.winner, roomId]);
+
+  useEffect(() => {
+    if (!showMatchIntro || game.status !== "playing") return undefined;
+    const animations = [
+      animate(".match-intro-overlay .intro-player", {
+        opacity: [0, 1],
+        translateY: [54, 0],
+        rotateY: stagger([-10, 10]),
+        scale: [0.9, 1],
+        delay: stagger(140),
+        duration: 840,
+        ease: "outBack(1.7)",
+      }),
+      animate(".match-intro-overlay .intro-vs", {
+        opacity: [0, 1],
+        scale: [0.3, 1.1, 1],
+        rotate: [-24, 0],
+        duration: 900,
+        ease: "outElastic(1, .7)",
+      }),
+      animate(".match-intro-overlay .intro-avatar", {
+        boxShadow: [
+          "0 0 0 0 rgba(255,255,255,0)",
+          "0 0 0 14px rgba(255,255,255,.06)",
+          "0 0 0 8px rgba(255,255,255,.03)",
+        ],
+        delay: stagger(120),
+        duration: 1100,
+        ease: "outCubic",
+      }),
+    ];
+
+    return () => animations.forEach((animation) => animation.revert());
+  }, [game.status, showMatchIntro]);
+
+  useEffect(() => {
+    if (game.status !== "finished" || !showResultOverlay) return undefined;
+    const animations = [
+      animate(".result-overlay .result-card", {
+        opacity: [0, 1],
+        translateY: [42, 0],
+        scale: [0.9, 1],
+        duration: 720,
+        ease: "outBack(1.45)",
+      }),
+      animate(".result-overlay .result-avatar", {
+        scale: [0.75, 1.08, 1],
+        rotate: stagger([-8, 8]),
+        delay: stagger(120),
+        duration: 820,
+        ease: "outElastic(1, .75)",
+      }),
+      animate(".result-overlay .elo-grid div, .result-overlay .result-actions button", {
+        opacity: [0, 1],
+        translateY: [18, 0],
+        delay: stagger(70, { start: 260 }),
+        duration: 520,
+        ease: "outCubic",
+      }),
+    ];
+
+    return () => animations.forEach((animation) => animation.revert());
+  }, [game.status, showResultOverlay]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);

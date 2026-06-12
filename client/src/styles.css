@@ -1176,6 +1176,17 @@ button {
   animation: match-fade-in 260ms ease-out, match-fade-out 420ms ease-in 1.8s forwards;
 }
 
+.match-intro-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 90px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 90px);
+  mask-image: radial-gradient(circle at 50% 50%, #000, transparent 68%);
+  animation: intro-grid-drift 3.2s linear infinite;
+}
+
 .versus-card {
   width: min(900px, 100%);
   display: grid;
@@ -1186,6 +1197,8 @@ button {
 
 .intro-player {
   min-height: 320px;
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1197,6 +1210,17 @@ button {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 36px 90px rgba(0,0,0,0.38);
   backdrop-filter: blur(14px);
   animation: intro-pop 420ms cubic-bezier(0.2, 1.35, 0.4, 1);
+}
+
+.intro-player::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, transparent 10%, rgba(255, 255, 255, 0.18), transparent 32%);
+  transform: translateX(-120%);
+  animation: intro-shine 1.45s ease 260ms both;
+  pointer-events: none;
 }
 
 .intro-you {
@@ -1294,6 +1318,14 @@ button {
 
 @keyframes match-fade-out {
   to { opacity: 0; visibility: hidden; }
+}
+
+@keyframes intro-shine {
+  to { transform: translateX(120%); }
+}
+
+@keyframes intro-grid-drift {
+  to { transform: translate3d(90px, 90px, 0); }
 }
 
 @media (max-width: 860px) {
@@ -2134,8 +2166,31 @@ body {
   background: radial-gradient(circle at 50% 20%, rgba(255, 91, 128, 0.24), rgba(0, 0, 0, 0.76) 50%, rgba(0, 0, 0, 0.92));
 }
 
+.result-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 25%, currentColor, transparent 6%),
+    radial-gradient(circle at 70% 68%, currentColor, transparent 5%),
+    repeating-conic-gradient(from 0deg, rgba(255,255,255,0.035) 0deg 8deg, transparent 8deg 18deg);
+  opacity: 0.18;
+  filter: blur(1px);
+  animation: result-atmosphere 7s linear infinite;
+}
+
+.result-overlay.win::before {
+  color: #35e8d6;
+}
+
+.result-overlay.lose::before {
+  color: #ff5d7a;
+}
+
 .result-card {
   width: min(720px, 94vw);
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(255, 245, 209, 0.16);
   border-radius: 32px;
   padding: clamp(22px, 4vw, 42px);
@@ -2143,6 +2198,21 @@ body {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
   color: #fff3c8;
   animation: resultPop 320ms cubic-bezier(.2,1.25,.4,1) both;
+}
+
+.result-card::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(120deg, transparent 35%, rgba(255,255,255,0.14), transparent 58%);
+  transform: translateX(-38%) rotate(8deg);
+  animation: result-card-sweep 1.4s ease 220ms both;
+  pointer-events: none;
+}
+
+.result-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .result-versus {
@@ -2192,6 +2262,7 @@ body {
   margin: 0;
   font-size: clamp(34px, 6vw, 56px);
   line-height: 1;
+  text-shadow: 0 0 28px rgba(255, 243, 200, 0.22);
 }
 
 .result-title-block small {
@@ -2260,6 +2331,54 @@ body {
   box-shadow: 0 10px 30px rgba(46, 230, 220, 0.18);
 }
 
+.primary-button,
+.secondary-button,
+.home-modal button,
+.profile-card-v2 button,
+.side-leaderboard-card button,
+.wall-card,
+.rematch-actions button,
+.rematch-button,
+.home-button,
+.give-up-button,
+.chat-form button {
+  transition:
+    transform 170ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    box-shadow 170ms ease,
+    border-color 170ms ease,
+    filter 170ms ease;
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.home-modal button:hover,
+.profile-card-v2 button:hover,
+.side-leaderboard-card button:hover,
+.wall-card:hover,
+.rematch-actions button:hover,
+.rematch-button:hover,
+.home-button:hover,
+.give-up-button:hover,
+.chat-form button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow: 0 16px 38px rgba(53, 232, 214, 0.16);
+}
+
+.primary-button:active,
+.secondary-button:active,
+.home-modal button:active,
+.profile-card-v2 button:active,
+.side-leaderboard-card button:active,
+.wall-card:active,
+.rematch-actions button:active,
+.rematch-button:active,
+.home-button:active,
+.give-up-button:active,
+.chat-form button:active {
+  transform: translateY(0) scale(0.975);
+}
+
 .rematch-actions button:last-child,
 .home-button {
   color: #fff3c8;
@@ -2288,6 +2407,14 @@ body {
 @keyframes resultPop {
   from { opacity: 0; transform: translateY(18px) scale(.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes result-atmosphere {
+  to { transform: rotate(360deg) scale(1.08); }
+}
+
+@keyframes result-card-sweep {
+  to { transform: translateX(38%) rotate(8deg); }
 }
 
 @media (max-width: 720px) {
@@ -2910,12 +3037,17 @@ body::before {
   min-height: 100vh;
   padding: clamp(16px, 3vw, 36px);
   background:
-    linear-gradient(135deg, rgba(53, 232, 214, 0.09), transparent 34%),
-    radial-gradient(circle at 85% 8%, rgba(255, 211, 106, 0.12), transparent 28%),
-    #070a0f;
+    radial-gradient(circle at 18% 12%, rgba(53, 232, 214, 0.14), transparent 30%),
+    radial-gradient(circle at 84% 16%, rgba(255, 93, 122, 0.13), transparent 30%),
+    linear-gradient(135deg, rgba(4, 16, 18, 0.88), rgba(5, 7, 10, 0.96) 54%, rgba(19, 9, 14, 0.92));
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
 }
 
 .home-v2 .home-shell {
+  position: relative;
+  z-index: 2;
   width: min(1180px, 100%);
   min-height: auto;
   display: grid;
@@ -2929,16 +3061,40 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
-    rgba(12, 16, 22, 0.9);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.035)),
+    rgba(8, 12, 18, 0.74);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(20px) saturate(130%);
 }
 
 .home-v2 .home-hero-card {
   min-height: auto;
   padding: clamp(18px, 2.5vw, 28px);
   overflow: hidden;
+}
+
+.home-background-3d {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.home-background-3d::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 10, 0.64), rgba(5, 7, 10, 0.18) 48%, rgba(5, 7, 10, 0.74)),
+    linear-gradient(180deg, rgba(5, 7, 10, 0.2), rgba(5, 7, 10, 0.76));
+}
+
+.home-background-3d .home-arena-canvas,
+.home-background-3d canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .home-v2 .home-hero-card::before {
@@ -3108,17 +3264,56 @@ body::before {
 .home-v2 .play-mode-card {
   min-height: 92px;
   padding: 16px;
+  position: relative;
+  overflow: hidden;
   border-radius: 14px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.085), transparent 44%),
     rgba(255, 255, 255, 0.045);
   text-align: left;
+  transform-style: preserve-3d;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
 }
 
 .home-v2 .play-mode-card.primary-mode {
   grid-column: 1 / -1;
   grid-row: auto;
   min-height: 142px;
+}
+
+.home-v2 .play-mode-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  opacity: 0;
+  background:
+    radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.24), transparent 24%),
+    linear-gradient(135deg, rgba(106, 255, 239, 0.12), rgba(255, 211, 106, 0.08));
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.home-v2 .play-mode-card:hover {
+  transform: translateY(-5px) rotateX(3deg);
+  border-color: rgba(106, 255, 239, 0.38);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34), 0 0 42px rgba(53, 232, 214, 0.12);
+}
+
+.home-v2 .play-mode-card:hover::after {
+  opacity: 1;
+}
+
+.home-v2 .play-mode-card:active {
+  transform: translateY(-1px) scale(0.985);
+}
+
+.home-v2 .play-mode-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .home-v2 .play-mode-card span {

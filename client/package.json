@@ -11,6 +11,7 @@
   "dependencies": {
     "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "latest",
+    "animejs": "^4.4.1",
     "firebase": "^12.14.0",
     "react": "latest",
     "react-dom": "latest",
