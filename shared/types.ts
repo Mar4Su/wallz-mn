@@ -3,6 +3,15 @@ export type Orientation = "H" | "V";
 export type PlayerColor = "blue" | "red";
 export type MoveKind = "pawn" | "wall" | "giveup" | "timeout";
 export type AiDifficulty = "easy" | "normal" | "hard" | "pro";
+export type TimeControlId = "1+1" | "3+3" | "5+5";
+
+export type TimeControlConfig = {
+  id: TimeControlId;
+  label: string;
+  baseMs: number;
+  incrementMs: number;
+  turnMs: number;
+};
 
 export type Position = {
   row: number;
@@ -83,6 +92,7 @@ export type GameState = {
   matchId?: string;
   matchType?: "friend" | "ranked" | "casual" | "ai";
   aiDifficulty?: AiDifficulty;
+  timeControl?: TimeControlConfig;
   boardSize: 9;
   status: GameStatus;
   currentTurn: PlayerId;
@@ -97,6 +107,8 @@ export type GameState = {
   result?: GameResult;
   clocks?: {
     totalMs: Record<PlayerId, number>;
+    incrementMs: number;
+    turnMs: number;
     turnStartedAt: number;
     turnEndsAt: number;
     disconnectedPlayer?: PlayerId;

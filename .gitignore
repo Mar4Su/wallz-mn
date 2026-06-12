@@ -2,9 +2,16 @@ node_modules/
 dist/
 .env
 *.log
+.firebase/
+client/dist/
+client/node_modules/
+client/.env.local
+server/dist/
+server/node_modules/
 server/.env
 server/serviceAccountKey.json
 server/*.json
 !server/package.json
 !server/package-lock.json
+!server/tsconfig.json
 *.local

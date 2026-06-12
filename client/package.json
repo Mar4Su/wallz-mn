@@ -9,11 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "latest",
     "firebase": "^12.14.0",
     "react": "latest",
     "react-dom": "latest",
     "socket.io-client": "latest",
+    "three": "^0.184.0",
     "vite": "latest"
   },
   "devDependencies": {

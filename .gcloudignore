@@ -2,6 +2,7 @@
 .firebase
 client/node_modules
 client/dist
+client/.env.local
 server/node_modules
 server/dist
 server/.env

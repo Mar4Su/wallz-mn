@@ -1,6 +1,7 @@
-import type { AiDifficulty, ClientPlayerProfile, GameState, PlayerId, PlayerState } from "../../../shared/types";
+import type { AiDifficulty, ClientPlayerProfile, GameState, PlayerId, PlayerState, TimeControlId } from "../../../shared/types";
 import { createGame } from "./createGame";
 import type { RankedPlayer } from "../ranked";
+import { resolveTimeControl } from "../../../shared/timeControls";
 
 const GUEST_AVATAR_ID = "-1.png";
 
@@ -84,12 +85,13 @@ export function clearPlayerDisconnect(room: Room, playerId: PlayerId): void {
   }
 }
 
-export function createRoom(socketId: string, profile?: ClientPlayerProfile): Room {
+export function createRoom(socketId: string, profile?: ClientPlayerProfile, timeControlId?: TimeControlId): Room {
   const id = uniqueRoomId();
+  const timeControl = resolveTimeControl(timeControlId);
 
   const room: Room = {
     id,
-    game: createGame(id),
+    game: createGame(id, undefined, timeControl),
     sockets: { P1: socketId },
   };
   applyPlayerProfile(room.game.players.P1, profile);
@@ -102,12 +104,14 @@ export function createCasualRoom(
   p1SocketId: string,
   p2SocketId: string,
   p1Profile?: ClientPlayerProfile,
-  p2Profile?: ClientPlayerProfile
+  p2Profile?: ClientPlayerProfile,
+  timeControlId?: TimeControlId
 ): Room {
   const id = uniqueRoomId();
+  const timeControl = resolveTimeControl(timeControlId);
   const room: Room = {
     id,
-    game: createGame(id),
+    game: createGame(id, undefined, timeControl),
     sockets: { P1: p1SocketId, P2: p2SocketId },
   };
 
@@ -119,11 +123,12 @@ export function createCasualRoom(
   return room;
 }
 
-export function createAiRoom(socketId: string, profile?: ClientPlayerProfile, difficulty: AiDifficulty = "normal"): Room {
+export function createAiRoom(socketId: string, profile?: ClientPlayerProfile, difficulty: AiDifficulty = "normal", timeControlId?: TimeControlId): Room {
   const id = uniqueRoomId();
+  const timeControl = resolveTimeControl(timeControlId);
   const room: Room = {
     id,
-    game: createGame(id),
+    game: createGame(id, undefined, timeControl),
     sockets: { P1: socketId },
     aiDifficulty: difficulty,
   };
@@ -156,7 +161,7 @@ function rankedProfile(player: RankedPlayer): ClientPlayerProfile {
   };
 }
 
-export function connectRankedRoom(matchId: string, players: RankedPlayer[], uid: string, socketId: string): { room?: Room; playerId?: PlayerId; error?: string } {
+export function connectRankedRoom(matchId: string, players: RankedPlayer[], uid: string, socketId: string, timeControlId?: TimeControlId): { room?: Room; playerId?: PlayerId; error?: string } {
   const playerIndex = players.findIndex((player) => player.uid === uid);
   if (playerIndex < 0) return { error: "Player is not in this ranked match." };
 
@@ -166,7 +171,7 @@ export function connectRankedRoom(matchId: string, players: RankedPlayer[], uid:
   if (!room) {
     room = {
       id: matchId,
-      game: createGame(matchId),
+      game: createGame(matchId, undefined, resolveTimeControl(timeControlId)),
       sockets: {},
     };
     room.game.matchId = matchId;
@@ -236,6 +241,16 @@ export function findSocketRoom(socketId: string): { room: Room; playerId: Player
   return null;
 }
 
+export function activeHumanPlayerCount(): number {
+  let count = 0;
+  for (const room of rooms.values()) {
+    if (room.game.status !== "playing") continue;
+    if (room.sockets.P1) count += 1;
+    if (room.game.matchType !== "ai" && room.sockets.P2) count += 1;
+  }
+  return count;
+}
+
 export function otherPlayer(playerId: PlayerId): PlayerId {
   return playerId === "P1" ? "P2" : "P1";
 }
@@ -263,7 +278,7 @@ export function createRematchRoom(oldRoom: Room): Room {
   const id = uniqueRoomId();
   const nextRoom: Room = {
     id,
-    game: createGame(id, oldRoom.game.players),
+    game: createGame(id, oldRoom.game.players, oldRoom.game.timeControl),
     sockets: { ...oldRoom.sockets },
   };
   nextRoom.game.status = "playing";

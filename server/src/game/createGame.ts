@@ -1,9 +1,8 @@
-import type { GameState, PlayerColor, PlayerId, PlayerState } from "../../../shared/types";
+import type { GameState, PlayerColor, PlayerId, PlayerState, TimeControlConfig } from "../../../shared/types";
 import { BOARD_SIZE, START_POSITIONS, WALLS_PER_PLAYER } from "../../../shared/constants";
+import { resolveTimeControl } from "../../../shared/timeControls";
 
 const GUEST_AVATAR_ID = "-1.png";
-const PLAYER_CLOCK_MS = 180_000;
-const TURN_CLOCK_MS = 30_000;
 
 function oppositeColor(color: PlayerColor): PlayerColor {
   return color === "blue" ? "red" : "blue";
@@ -30,14 +29,16 @@ function makePlayer(id: PlayerId, color: PlayerColor, previous?: PlayerState): P
   };
 }
 
-export function createGame(roomId: string, previousPlayers?: GameState["players"]): GameState {
+export function createGame(roomId: string, previousPlayers?: GameState["players"], timeControl?: TimeControlConfig): GameState {
   const p1Color: PlayerColor = Math.random() < 0.5 ? "blue" : "red";
   const p2Color = oppositeColor(p1Color);
   const currentTurn = playerWithColor(p1Color, "blue");
   const turnStartedAt = Date.now();
+  const clock = timeControl ?? resolveTimeControl();
 
   return {
     roomId,
+    timeControl: clock,
     boardSize: BOARD_SIZE,
     status: "waiting",
     currentTurn,
@@ -51,11 +52,13 @@ export function createGame(roomId: string, previousPlayers?: GameState["players"
     winner: null,
     clocks: {
       totalMs: {
-        P1: PLAYER_CLOCK_MS,
-        P2: PLAYER_CLOCK_MS,
+        P1: clock.baseMs,
+        P2: clock.baseMs,
       },
+      incrementMs: clock.incrementMs,
+      turnMs: clock.turnMs,
       turnStartedAt,
-      turnEndsAt: turnStartedAt + TURN_CLOCK_MS,
+      turnEndsAt: turnStartedAt + clock.turnMs,
     },
   };
 }

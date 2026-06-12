@@ -1,4 +1,5 @@
 import type { User } from "firebase/auth";
+import type { TimeControlId } from "../../shared/types";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 
@@ -34,8 +35,8 @@ export type RankedFinalizeResponse = {
   loser?: { before: number; after: number; delta: number };
 };
 
-export function enqueueRanked(user: User): Promise<RankedQueueResponse> {
-  return rankedRequest(user, "/ranked/enqueue", { method: "POST", body: "{}" });
+export function enqueueRanked(user: User, timeControlId: TimeControlId): Promise<RankedQueueResponse> {
+  return rankedRequest(user, "/ranked/enqueue", { method: "POST", body: JSON.stringify({ timeControlId }) });
 }
 
 export function getRankedStatus(user: User): Promise<RankedQueueResponse> {
@@ -44,6 +45,18 @@ export function getRankedStatus(user: User): Promise<RankedQueueResponse> {
 
 export function cancelRanked(user: User): Promise<RankedQueueResponse> {
   return rankedRequest(user, "/ranked/cancel", { method: "POST", body: "{}" });
+}
+
+export function cancelRankedWithToken(idToken: string): void {
+  void fetch(`${SERVER_URL}/ranked/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: "{}",
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 export function finalizeRanked(user: User, matchId: string, winnerUid: string, loserUid: string): Promise<RankedFinalizeResponse> {

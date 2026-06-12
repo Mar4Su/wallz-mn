@@ -35,7 +35,7 @@ function serviceAccountFromEnv() {
 if (!getApps().length) {
   const serviceAccount = serviceAccountFromEnv();
   initializeApp({
-    credential: serviceAccount ? cert(serviceAccount) : undefined,
+    ...(serviceAccount ? { credential: cert(serviceAccount) } : {}),
     projectId: process.env.FIREBASE_PROJECT_ID || serviceAccount?.project_id,
   });
 }

@@ -8,6 +8,7 @@ import {
   clearAiTimeout,
   clearPlayerDisconnect,
   clearTurnTimeout,
+  activeHumanPlayerCount,
   connectRankedRoom,
   createAiRoom,
   createCasualRoom,
@@ -21,15 +22,14 @@ import {
   removeSocketFromRooms,
 } from "./game/rooms";
 import { applyGiveUp, applyPawnMove, applyTurnTimeout, applyWallPlacement, finishGame, getLegalPawnMoves } from "./game/rules";
-import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, Wall } from "../../shared/types";
+import type { AiDifficulty, ChatMessage, ClientPlayerProfile, GameState, GiveUpPayload, MovePawnPayload, PlaceWallPayload, PlayerId, Position, RematchPayload, SendChatMessagePayload, TimeControlId, Wall } from "../../shared/types";
 import { cancelRanked, enqueueRanked, finalizeRankedMatch, getRankedMatch, getRankedStatus, verifyBearerToken } from "./ranked";
+import { resolveTimeControl } from "../../shared/timeControls";
 
 const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5173";
 const REMATCH_MS = 10_000;
 const ABANDONMENT_MS = 25_000;
-const TURN_CLOCK_MS = 30_000;
-const PLAYER_CLOCK_MS = 180_000;
 const MAX_CHAT_MESSAGES = 50;
 const MAX_CHAT_LENGTH = 180;
 const AI_PLAYER_ID: PlayerId = "P2";
@@ -38,17 +38,27 @@ const HUMAN_PLAYER_ID: PlayerId = "P1";
 type CasualQueueEntry = {
   socketId: string;
   profile?: ClientPlayerProfile;
+  timeControlId: TimeControlId;
 };
 
 function resetTurnClock(room: NonNullable<ReturnType<typeof getRoom>>): void {
   const now = Date.now();
+  const timeControl = room.game.timeControl ?? resolveTimeControl();
+  room.game.timeControl = timeControl;
   room.game.clocks = {
-    totalMs: room.game.clocks?.totalMs ?? { P1: PLAYER_CLOCK_MS, P2: PLAYER_CLOCK_MS },
+    totalMs: room.game.clocks?.totalMs ?? { P1: timeControl.baseMs, P2: timeControl.baseMs },
+    incrementMs: timeControl.incrementMs,
+    turnMs: timeControl.turnMs,
     turnStartedAt: now,
-    turnEndsAt: now + TURN_CLOCK_MS,
+    turnEndsAt: now + timeControl.turnMs,
     disconnectedPlayer: room.game.clocks?.disconnectedPlayer,
     disconnectEndsAt: room.game.clocks?.disconnectEndsAt,
   };
+}
+
+function addClockIncrement(room: NonNullable<ReturnType<typeof getRoom>>, playerId: PlayerId): void {
+  if (!room.game.clocks) return;
+  room.game.clocks.totalMs[playerId] += room.game.clocks.incrementMs;
 }
 
 function syncClockElapsed(room: NonNullable<ReturnType<typeof getRoom>>): boolean {
@@ -235,6 +245,7 @@ function scheduleAiTurn(room: NonNullable<ReturnType<typeof getRoom>>): void {
 
     clearRematch(latestRoom);
     if (!latestRoom.game.winner) {
+      addClockIncrement(latestRoom, AI_PLAYER_ID);
       resetTurnClock(latestRoom);
       scheduleTurnTimeout(latestRoom);
     } else {
@@ -263,7 +274,8 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.post("/ranked/enqueue", async (req, res) => {
   try {
     const decoded = await verifyBearerToken(req.headers.authorization);
-    res.json(await enqueueRanked(decoded));
+    const { timeControlId } = req.body as { timeControlId?: TimeControlId };
+    res.json(await enqueueRanked(decoded, timeControlId));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Could not enter ranked queue." });
   }
@@ -308,24 +320,34 @@ const io = new Server(httpServer, {
 
 const casualQueue = new Map<string, CasualQueueEntry>();
 
+function emitPresenceCount(): void {
+  io.emit("presence-count", {
+    online: io.engine.clientsCount,
+    playing: activeHumanPlayerCount(),
+  });
+}
+
 io.on("connection", (socket) => {
   console.log("connected", socket.id);
+  emitPresenceCount();
 
-  socket.on("create-room", ({ profile }: { profile?: ClientPlayerProfile } = {}) => {
-    const room = createRoom(socket.id, profile);
+  socket.on("create-room", ({ profile, timeControlId }: { profile?: ClientPlayerProfile; timeControlId?: TimeControlId } = {}) => {
+    const room = createRoom(socket.id, profile, timeControlId);
     socket.join(room.id);
     socket.emit("room-created", { roomId: room.id, playerId: "P1", game: room.game });
+    emitPresenceCount();
   });
 
-  socket.on("create-ai-room", ({ profile, difficulty }: { profile?: ClientPlayerProfile; difficulty?: AiDifficulty } = {}) => {
+  socket.on("create-ai-room", ({ profile, difficulty, timeControlId }: { profile?: ClientPlayerProfile; difficulty?: AiDifficulty; timeControlId?: TimeControlId } = {}) => {
     const allowedDifficulty: AiDifficulty = difficulty === "easy" || difficulty === "normal" || difficulty === "hard" || difficulty === "pro" ? difficulty : "normal";
-    const room = createAiRoom(socket.id, profile, allowedDifficulty);
+    const room = createAiRoom(socket.id, profile, allowedDifficulty, timeControlId);
     resetTurnClock(room);
     socket.join(room.id);
     socket.emit("game-started", { roomId: room.id, playerId: "P1", game: room.game });
     io.to(room.id).emit("game-updated", room.game);
     scheduleTurnTimeout(room);
     scheduleAiTurn(room);
+    emitPresenceCount();
   });
 
   socket.on("join-room", ({ roomId, profile }: { roomId: string; profile?: ClientPlayerProfile }) => {
@@ -349,6 +371,7 @@ io.on("connection", (socket) => {
     if (result.room.game.status === "playing") {
       scheduleTurnTimeout(result.room);
     }
+    emitPresenceCount();
   });
 
   socket.on("rejoin-room", async ({ roomId, playerId, profile, idToken }: { roomId: string; playerId: PlayerId; profile?: ClientPlayerProfile; idToken?: string }) => {
@@ -373,6 +396,7 @@ io.on("connection", (socket) => {
       io.to(result.room.id).emit("game-updated", result.room.game);
       scheduleTurnTimeout(result.room);
       scheduleAiTurn(result.room);
+      emitPresenceCount();
     } catch (err) {
       socket.emit("invalid-move", { message: err instanceof Error ? err.message : "Could not rejoin room." });
     }
@@ -387,7 +411,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const result = connectRankedRoom(matchId, match.players, decoded.uid, socket.id);
+      const result = connectRankedRoom(matchId, match.players, decoded.uid, socket.id, match.timeControlId);
       if (!result.room || !result.playerId) {
         socket.emit("invalid-move", { message: result.error ?? "Could not join ranked match." });
         return;
@@ -401,17 +425,19 @@ io.on("connection", (socket) => {
       });
       io.to(result.room.id).emit("game-updated", result.room.game);
       scheduleTurnTimeout(result.room);
+      emitPresenceCount();
     } catch (err) {
       socket.emit("invalid-move", { message: err instanceof Error ? err.message : "Could not join ranked match." });
     }
   });
 
-  socket.on("casual-search", ({ profile }: { profile?: ClientPlayerProfile } = {}) => {
+  socket.on("casual-search", ({ profile, timeControlId }: { profile?: ClientPlayerProfile; timeControlId?: TimeControlId } = {}) => {
     if (casualQueue.has(socket.id)) return;
+    const selectedTimeControl = resolveTimeControl(timeControlId);
 
-    const opponent = [...casualQueue.values()].find((entry) => entry.socketId !== socket.id);
+    const opponent = [...casualQueue.values()].find((entry) => entry.socketId !== socket.id && entry.timeControlId === selectedTimeControl.id);
     if (!opponent) {
-      casualQueue.set(socket.id, { socketId: socket.id, profile });
+      casualQueue.set(socket.id, { socketId: socket.id, profile, timeControlId: selectedTimeControl.id });
       socket.emit("casual-searching");
       return;
     }
@@ -419,12 +445,12 @@ io.on("connection", (socket) => {
     casualQueue.delete(opponent.socketId);
     const opponentSocket = io.sockets.sockets.get(opponent.socketId);
     if (!opponentSocket) {
-      casualQueue.set(socket.id, { socketId: socket.id, profile });
+      casualQueue.set(socket.id, { socketId: socket.id, profile, timeControlId: selectedTimeControl.id });
       socket.emit("casual-searching");
       return;
     }
 
-    const room = createCasualRoom(opponent.socketId, socket.id, opponent.profile, profile);
+    const room = createCasualRoom(opponent.socketId, socket.id, opponent.profile, profile, selectedTimeControl.id);
     resetTurnClock(room);
     opponentSocket.join(room.id);
     socket.join(room.id);
@@ -432,6 +458,7 @@ io.on("connection", (socket) => {
     socket.emit("game-started", { roomId: room.id, playerId: "P2", game: room.game });
     io.to(room.id).emit("game-updated", room.game);
     scheduleTurnTimeout(room);
+    emitPresenceCount();
   });
 
   socket.on("casual-cancel", () => {
@@ -463,6 +490,7 @@ io.on("connection", (socket) => {
 
     clearRematch(room);
     if (!room.game.winner) {
+      addClockIncrement(room, payload.playerId);
       resetTurnClock(room);
       scheduleTurnTimeout(room);
     } else {
@@ -495,6 +523,7 @@ io.on("connection", (socket) => {
     }
 
     clearRematch(room);
+    addClockIncrement(room, payload.playerId);
     resetTurnClock(room);
     scheduleTurnTimeout(room);
     emitRoomUpdate(room);
@@ -689,15 +718,18 @@ io.on("connection", (socket) => {
               message: "Enemy left and lost by abandonment.",
             });
           }
+          emitPresenceCount();
         }, ABANDONMENT_MS),
       };
 
       console.log("disconnected", socket.id);
+      emitPresenceCount();
       return;
     }
 
     removeSocketFromRooms(socket.id);
     console.log("disconnected", socket.id);
+    emitPresenceCount();
   });
 });
 
