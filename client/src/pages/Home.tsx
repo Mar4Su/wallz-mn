@@ -960,7 +960,11 @@ export default function Home({ error, onGoProfile }: Props) {
                 <p className="leaderboard-empty compact">No ranked players yet.</p>
               ) : (
                 leaderboard.map((player) => (
-                  <div key={player.uid} className={`leaderboard-row compact ${player.uid === currentUser?.uid ? "me" : ""}`}>
+                  <button
+                    key={player.uid}
+                    className={`leaderboard-row compact ${player.uid === currentUser?.uid ? "me" : ""}`}
+                    onClick={() => openUserProfile(player.publicId)}
+                  >
                     <span className="leaderboard-rank">#{player.rank}</span>
                     <span className={`leaderboard-avatar ${player.profileColor}`}>
                       <img src={profilePictureUrl(player.avatarId)} alt="" />
@@ -970,7 +974,7 @@ export default function Home({ error, onGoProfile }: Props) {
                       <small>@{player.publicId} - {player.wins}W / {player.losses}L</small>
                     </div>
                     <b>{player.elo}</b>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

@@ -86,9 +86,11 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   const [chatText, setChatText] = useState("");
   const [showResultOverlay, setShowResultOverlay] = useState(game.status === "finished");
   const [boardIntroStaggerKey, setBoardIntroStaggerKey] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const rankedFinalizeRef = useRef<string | null>(null);
   const chatListRef = useRef<HTMLDivElement | null>(null);
   const introFinishedRef = useRef(false);
+  const toastTimerRef = useRef<number | null>(null);
 
   const isMyTurn = game.status === "playing" && game.currentTurn === playerId;
   const opponentId = oppositePlayer(playerId);
@@ -357,6 +359,20 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   }, []);
 
   useEffect(() => {
+    function onInvalidMove({ message }: { message?: string }) {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      setToastMessage(message ?? "Invalid move.");
+      toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 2000);
+    }
+
+    socket.on("invalid-move", onInvalidMove);
+    return () => {
+      socket.off("invalid-move", onInvalidMove);
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight });
   }, [chatMessages.length]);
 
@@ -390,6 +406,16 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
       })
       .catch(() => undefined);
   }, [currentUser, game, refreshProfile]);
+
+  useEffect(() => {
+    if (!error) return;
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    setToastMessage(error);
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 2000);
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, [error]);
 
   return (
     <main className={`game-page playing-game ${isMyTurn ? "turn-active" : "turn-waiting"} ${myColor}-player`}>
@@ -526,7 +552,7 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
         </section>
       )}
 
-      {error && <p className="error-text">{error}</p>}
+      {toastMessage && <div className="game-toast">{toastMessage}</div>}
       {opponentDisconnected && (
         <section className="disconnect-banner">
           <strong>Enemy left.</strong>

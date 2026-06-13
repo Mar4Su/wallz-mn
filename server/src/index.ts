@@ -305,11 +305,21 @@ function shouldUseWall(room: NonNullable<ReturnType<typeof getRoom>>, difficulty
   const moveCount = room.game.moveHistory?.length ?? 0;
   const aiDistance = distanceToGoal(room.game, AI_PLAYER_ID);
   const humanDistance = distanceToGoal(room.game, HUMAN_PLAYER_ID);
-  const urgent = humanDistance <= aiDistance + 1 || humanDistance <= 4;
-  const openingDiscipline = difficulty === "pro" || difficulty === "hard" ? moveCount >= 8 || urgent : moveCount >= 12 || urgent;
+  const wallsLeft = room.game.players[AI_PLAYER_ID].wallsLeft;
+  const wallsUsed = 10 - wallsLeft;
+  const urgent = humanDistance <= 3 || humanDistance + 2 < aiDistance;
+  const openingDiscipline = difficulty === "pro" || difficulty === "hard" ? moveCount >= 12 || urgent : moveCount >= 16 || urgent;
   if (!openingDiscipline) return false;
 
-  const difficultyBias = difficulty === "easy" ? 2.4 : difficulty === "normal" ? 1.55 : difficulty === "hard" ? 1.05 : 0.85;
+  const wallBudget = difficulty === "pro"
+    ? Math.max(1, Math.floor(moveCount / 5))
+    : difficulty === "hard"
+      ? Math.max(1, Math.floor(moveCount / 4))
+      : Math.max(0, Math.floor(moveCount / 6));
+  if (!urgent && wallsUsed >= wallBudget) return false;
+  if (wallsLeft <= 3 && humanDistance > 3) return false;
+
+  const difficultyBias = difficulty === "easy" ? 2.8 : difficulty === "normal" ? 1.9 : difficulty === "hard" ? 1.45 : 1.25;
   const moveIsWeak = bestMoveScore > 8.5 || humanDistance < aiDistance;
   return bestWall.score >= difficultyBias || (moveIsWeak && bestWall.score > difficultyBias * 0.7);
 }
