@@ -455,7 +455,7 @@ export default function Home({ error, onGoProfile }: Props) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [language, setLanguage] = useState<Language>("mn");
+  const [language, setLanguage] = useState<Language>("en");
   const [activePanel, setActivePanel] = useState<PlayMode | "auth" | null>(null);
   const [searchMode, setSearchMode] = useState<SearchMode>(null);
   const [rankedMatchId, setRankedMatchId] = useState<string | null>(null);
@@ -782,8 +782,14 @@ export default function Home({ error, onGoProfile }: Props) {
         </button>
         <div className="topbar-actions">
           <span className="online-pill"><i /> {playingCount} playing</span>
-          <button className="language-toggle" onClick={() => setLanguage((value) => value === "mn" ? "en" : "mn")}>
-            {language === "mn" ? "MN" : "EN"}
+          <button
+            className="language-toggle"
+            onClick={() => setLanguage((value) => value === "mn" ? "en" : "mn")}
+            aria-label="Toggle language"
+          >
+            <span className={language === "en" ? "active" : ""}>ENG</span>
+            <i aria-hidden="true">|</i>
+            <span className={language === "mn" ? "active" : ""}>MN</span>
           </button>
           <div className="account-menu">
             <button className="account-trigger" onClick={() => setAccountOpen((value) => !value)}>
@@ -980,6 +986,34 @@ export default function Home({ error, onGoProfile }: Props) {
             </div>
           </section>
         </aside>
+      </section>
+
+      <section className="home-rules-section" aria-label="Game rules">
+        <div>
+          <span>How XAHA Works</span>
+          <h2>Race your pawn. Control the path.</h2>
+          <p>
+            XAHA is a fast 9x9 strategy game inspired by wall-placement race games. Your goal is to reach the opposite side of the board before your opponent does.
+          </p>
+        </div>
+        <div className="home-rules-grid">
+          <article>
+            <strong>Move</strong>
+            <p>On your turn, move your pawn one legal tile. If the opponent is directly in front, jumping and side-step moves can become available.</p>
+          </article>
+          <article>
+            <strong>Build</strong>
+            <p>Instead of moving, place one wall to slow the opponent. A wall is only valid if both players still have at least one path to their goal.</p>
+          </article>
+          <article>
+            <strong>Clock</strong>
+            <p>Each match mode has its own time control. If your turn timer or total clock runs out, you lose by timeout.</p>
+          </article>
+          <article>
+            <strong>Ranked</strong>
+            <p>Ranked games require a verified account. Winning raises your ELO, losing lowers it, and match history stores replayable moves.</p>
+          </article>
+        </div>
       </section>
 
       {selectedReplay && <ReplayPreview match={selectedReplay} onClose={() => setSelectedReplay(null)} />}
