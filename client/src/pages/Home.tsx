@@ -11,7 +11,7 @@ import { cancelRanked, cancelRankedWithToken, enqueueRanked, getRankedStatus } f
 import { getLeaderboard } from "../leaderboardApi";
 import type { LeaderboardPlayer } from "../leaderboardApi";
 import { getMyMatchHistory } from "../matchHistoryApi";
-import type { MatchHistoryPlayer, MatchHistoryRecord } from "../matchHistoryApi";
+import type { MatchHistoryRecord } from "../matchHistoryApi";
 import { profilePictureUrl } from "../profilePictures";
 import type { AiDifficulty } from "../../../shared/types";
 import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../../../shared/timeControls";
@@ -105,15 +105,48 @@ function ordinal(rank: number): string {
 
 function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose: () => void }) {
   const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [phase, setPhase] = useState<"intro" | "playing" | "outro">("intro");
+  const outroStartedRef = useRef(false);
   const moves = match.moves ?? [];
   const boardSize = 9;
+
+  useEffect(() => {
+    const squares = ".replay-modal .replay-stagger-square";
+    animate(squares, {
+      scale: [{ to: [0, 1.15] }, { to: 0 }],
+      opacity: [{ to: 1 }, { to: 0 }],
+      boxShadow: [{ to: "0 0 1rem 0 currentColor" }, { to: "0 0 0rem 0 currentColor" }],
+      delay: stagger(35, { grid: [9, 9], from: 72 }),
+      duration: 720,
+      ease: "inOutQuad",
+      onComplete: () => {
+        setPhase("playing");
+        setPlaying(true);
+      },
+    });
+  }, []);
 
   useEffect(() => {
     if (!playing || step >= moves.length) return undefined;
     const timer = window.setTimeout(() => setStep((value) => Math.min(moves.length, value + 1)), 720);
     return () => window.clearTimeout(timer);
   }, [moves.length, playing, step]);
+
+  useEffect(() => {
+    if (phase !== "playing" || step < moves.length || moves.length === 0 || outroStartedRef.current) return;
+    outroStartedRef.current = true;
+    setPlaying(false);
+    setPhase("outro");
+    animate(".replay-modal .replay-stagger-square", {
+      scale: [{ to: [0, 1.18] }, { to: 0 }],
+      opacity: [{ to: 1 }, { to: 0 }],
+      boxShadow: [{ to: "0 0 1rem 0 currentColor" }, { to: "0 0 0rem 0 currentColor" }],
+      delay: stagger(30, { grid: [9, 9], from: match.result === "win" ? 72 : 8 }),
+      duration: 760,
+      ease: "inOutQuad",
+    });
+  }, [match.result, moves.length, phase, step]);
 
   const replayState = useMemo(() => {
     const positions: Record<PlayerId, Position> = {
@@ -132,11 +165,14 @@ function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose:
     <section className="home-modal-backdrop replay-backdrop" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <div className="home-modal replay-modal" role="dialog" aria-modal="true">
+      <div className={`home-modal replay-modal ${phase}`} role="dialog" aria-modal="true">
         <button className="modal-close-button" onClick={onClose}>x</button>
-        <div className="modal-heading">
-          <span>{match.result === "win" ? "Win replay" : "Loss replay"}</span>
-          <strong>vs {match.opponentName}</strong>
+        <div className="replay-header">
+          <div>
+            <span>{match.result === "win" ? "Win replay" : "Loss replay"}</span>
+            <strong>vs {match.opponentName}</strong>
+          </div>
+          <b className={match.eloDelta >= 0 ? "positive" : "negative"}>{match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} ELO</b>
         </div>
         <div className="replay-board">
           {Array.from({ length: boardSize * boardSize }, (_, index) => {
@@ -152,17 +188,28 @@ function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose:
           {replayState.walls.map((wall, index) => (
             <span
               key={`${wall.row}-${wall.col}-${wall.orientation}-${index}`}
-              className={`replay-wall ${wall.orientation === "H" ? "horizontal" : "vertical"}`}
+              className={`replay-wall ${wall.orientation === "H" ? "horizontal" : "vertical"} ${wall.owner === "P2" ? "red" : "blue"}`}
               style={{
                 "--wall-row": wall.row,
                 "--wall-col": wall.col,
               } as CSSProperties}
             />
           ))}
+          <div className={`replay-stagger-grid ${phase === "playing" ? "hidden" : ""}`}>
+            {Array.from({ length: boardSize * boardSize }, (_, index) => (
+              <span key={index} className={`replay-stagger-square ${match.result === "win" ? "blue" : "red"}`} />
+            ))}
+          </div>
         </div>
         <div className="replay-controls">
+          <button onClick={() => {
+            outroStartedRef.current = false;
+            setPhase("playing");
+            setPlaying(true);
+            setStep(0);
+          }}>Reset</button>
           <button onClick={() => setStep((value) => Math.max(0, value - 1))}>Prev</button>
-          <button onClick={() => setPlaying((value) => !value)}>{playing ? "Pause" : "Play"}</button>
+          <button className="replay-play-button" onClick={() => setPlaying((value) => !value)} disabled={phase !== "playing"}>{playing ? "Pause" : "Play"}</button>
           <button onClick={() => setStep((value) => Math.min(moves.length, value + 1))}>Next</button>
         </div>
         <p className="replay-step">Move {step} / {moves.length}</p>
@@ -426,7 +473,6 @@ export default function Home({ error, onGoProfile }: Props) {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryRecord[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedReplay, setSelectedReplay] = useState<MatchHistoryRecord | null>(null);
-  const [selectedOpponent, setSelectedOpponent] = useState<MatchHistoryPlayer | null>(null);
   const rankedCancelTokenRef = useRef<string | null>(null);
   const rankedSearchingRef = useRef(false);
   const { currentUser, profile, loading, authReady, configError, signupWithEmail, loginWithEmail, logout } = useAuth();
@@ -463,6 +509,11 @@ export default function Home({ error, onGoProfile }: Props) {
   function joinRoom() {
     if (!roomCode.trim()) return;
     socket.emit("join-room", { roomId: roomCode.trim().toUpperCase(), profile: playerProfilePayload() });
+  }
+
+  function openUserProfile(publicId: string) {
+    window.history.pushState(null, "", `/user/${encodeURIComponent(publicId)}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
   }
 
   function openRanked() {
@@ -829,13 +880,13 @@ export default function Home({ error, onGoProfile }: Props) {
                   <article key={match.matchId} className={`match-history-row ${match.result}`}>
                     <strong>{match.result === "win" ? "WIN" : "LOSS"}</strong>
                     <span className={`mini-avatar ${match.result === "win" ? "blue" : "red"}`} />
-                    <button className="history-opponent" onClick={() => setSelectedOpponent(match.players.find((player) => player.uid === match.opponentUid) ?? null)}>
+                    <button className="history-opponent" onClick={() => openUserProfile(match.opponentPublicId)}>
                       {match.opponentName}
                     </button>
                     <span className={match.eloDelta >= 0 ? "positive" : "negative"}>
                       {match.eloDelta >= 0 ? "+" : ""}{match.eloDelta}
                     </span>
-                    <button className="icon-action-button" onClick={() => setSelectedReplay(match)} title={homeText.replay}>▶</button>
+                    <button className="icon-action-button" onClick={() => setSelectedReplay(match)} title={homeText.replay}>Play</button>
                   </article>
                 ))
               )}
@@ -928,25 +979,6 @@ export default function Home({ error, onGoProfile }: Props) {
       </section>
 
       {selectedReplay && <ReplayPreview match={selectedReplay} onClose={() => setSelectedReplay(null)} />}
-      {selectedOpponent && (
-        <section className="home-modal-backdrop profile-preview-backdrop" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setSelectedOpponent(null);
-        }}>
-          <div className="home-modal profile-preview-modal" role="dialog" aria-modal="true">
-            <button className="modal-close-button" onClick={() => setSelectedOpponent(null)}>x</button>
-            <div className="profile-preview-body">
-              <span className={`profile-avatar ${selectedOpponent.profileColor}`}>
-                <img src={profilePictureUrl(selectedOpponent.avatarId)} alt="" />
-              </span>
-              <span className="profile-label">{homeText.profile}</span>
-              <strong>{selectedOpponent.displayName}</strong>
-              <small>@{selectedOpponent.publicId}</small>
-              <b>ELO {selectedOpponent.startingElo}</b>
-            </div>
-          </div>
-        </section>
-      )}
-
       {(activePanel === "ranked" || activePanel === "casual" || activePanel === "friend" || activePanel === "computer") && (
         <section className="home-modal-backdrop" onMouseDown={(event) => {
           if (event.target === event.currentTarget && !searchMode) setActivePanel(null);

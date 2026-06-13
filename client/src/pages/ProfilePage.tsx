@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { animate, stagger } from "animejs";
 import type { MoveRecord, PlayerId, Position, Wall } from "../../../shared/types";
 import { useAuth } from "../auth/AuthContext";
 import { PROFILE_PICTURE_IDS, profilePictureUrl } from "../profilePictures";
@@ -25,15 +26,47 @@ function ordinal(rank: number): string {
 
 function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose: () => void }) {
   const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [phase, setPhase] = useState<"intro" | "playing" | "outro">("intro");
+  const outroStartedRef = useRef(false);
   const moves = match.moves ?? [];
   const boardSize = 9;
+
+  useEffect(() => {
+    animate(".replay-modal .replay-stagger-square", {
+      scale: [{ to: [0, 1.15] }, { to: 0 }],
+      opacity: [{ to: 1 }, { to: 0 }],
+      boxShadow: [{ to: "0 0 1rem 0 currentColor" }, { to: "0 0 0rem 0 currentColor" }],
+      delay: stagger(35, { grid: [9, 9], from: 72 }),
+      duration: 720,
+      ease: "inOutQuad",
+      onComplete: () => {
+        setPhase("playing");
+        setPlaying(true);
+      },
+    });
+  }, []);
 
   useEffect(() => {
     if (!playing || step >= moves.length) return undefined;
     const timer = window.setTimeout(() => setStep((value) => Math.min(moves.length, value + 1)), 700);
     return () => window.clearTimeout(timer);
   }, [moves.length, playing, step]);
+
+  useEffect(() => {
+    if (phase !== "playing" || step < moves.length || moves.length === 0 || outroStartedRef.current) return;
+    outroStartedRef.current = true;
+    setPlaying(false);
+    setPhase("outro");
+    animate(".replay-modal .replay-stagger-square", {
+      scale: [{ to: [0, 1.18] }, { to: 0 }],
+      opacity: [{ to: 1 }, { to: 0 }],
+      boxShadow: [{ to: "0 0 1rem 0 currentColor" }, { to: "0 0 0rem 0 currentColor" }],
+      delay: stagger(30, { grid: [9, 9], from: match.result === "win" ? 72 : 8 }),
+      duration: 760,
+      ease: "inOutQuad",
+    });
+  }, [match.result, moves.length, phase, step]);
 
   const replayState = useMemo(() => {
     const positions: Record<PlayerId, Position> = {
@@ -52,11 +85,14 @@ function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose:
     <section className="home-modal-backdrop replay-backdrop" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <div className="home-modal replay-modal" role="dialog" aria-modal="true">
+      <div className={`home-modal replay-modal ${phase}`} role="dialog" aria-modal="true">
         <button className="modal-close-button" onClick={onClose}>x</button>
-        <div className="modal-heading">
-          <span>Replay</span>
-          <strong>vs {match.opponentName}</strong>
+        <div className="replay-header">
+          <div>
+            <span>Replay</span>
+            <strong>vs {match.opponentName}</strong>
+          </div>
+          <b className={match.eloDelta >= 0 ? "positive" : "negative"}>{match.eloDelta >= 0 ? "+" : ""}{match.eloDelta} ELO</b>
         </div>
         <div className="replay-board">
           {Array.from({ length: boardSize * boardSize }, (_, index) => {
@@ -66,12 +102,23 @@ function ReplayPreview({ match, onClose }: { match: MatchHistoryRecord; onClose:
             return <div key={`${row}-${col}`} className="replay-cell">{pawn && <span className={`replay-pawn ${pawn === "P1" ? "blue" : "red"}`} />}</div>;
           })}
           {replayState.walls.map((wall, index) => (
-            <span key={`${wall.row}-${wall.col}-${wall.orientation}-${index}`} className={`replay-wall ${wall.orientation === "H" ? "horizontal" : "vertical"}`} style={{ "--wall-row": wall.row, "--wall-col": wall.col } as CSSProperties} />
+            <span key={`${wall.row}-${wall.col}-${wall.orientation}-${index}`} className={`replay-wall ${wall.orientation === "H" ? "horizontal" : "vertical"} ${wall.owner === "P2" ? "red" : "blue"}`} style={{ "--wall-row": wall.row, "--wall-col": wall.col } as CSSProperties} />
           ))}
+          <div className={`replay-stagger-grid ${phase === "playing" ? "hidden" : ""}`}>
+            {Array.from({ length: boardSize * boardSize }, (_, index) => (
+              <span key={index} className={`replay-stagger-square ${match.result === "win" ? "blue" : "red"}`} />
+            ))}
+          </div>
         </div>
         <div className="replay-controls">
+          <button onClick={() => {
+            outroStartedRef.current = false;
+            setPhase("playing");
+            setPlaying(true);
+            setStep(0);
+          }}>Reset</button>
           <button onClick={() => setStep((value) => Math.max(0, value - 1))}>Prev</button>
-          <button onClick={() => setPlaying((value) => !value)}>{playing ? "Pause" : "Play"}</button>
+          <button className="replay-play-button" onClick={() => setPlaying((value) => !value)} disabled={phase !== "playing"}>{playing ? "Pause" : "Play"}</button>
           <button onClick={() => setStep((value) => Math.min(moves.length, value + 1))}>Next</button>
         </div>
         <p className="replay-step">Move {step} / {moves.length}</p>
