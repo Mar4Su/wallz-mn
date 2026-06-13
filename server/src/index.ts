@@ -131,35 +131,113 @@ function goalRowFor(playerId: PlayerId, game: GameState): number {
 }
 
 function distanceToGoal(game: GameState, playerId: PlayerId): number {
+  const path = shortestPathToGoal(game, playerId);
+  return path ? Math.max(0, path.length - 1) : 99;
+}
+
+function positionKey(pos: Position): string {
+  return `${pos.row},${pos.col}`;
+}
+
+function samePosition(a: Position, b: Position): boolean {
+  return a.row === b.row && a.col === b.col;
+}
+
+function shortestPathToGoal(game: GameState, playerId: PlayerId): Position[] | null {
   const goalRow = goalRowFor(playerId, game);
   const start = game.players[playerId].position;
   const queue: Array<{ pos: Position; distance: number }> = [{ pos: start, distance: 0 }];
-  const seen = new Set<string>([`${start.row},${start.col}`]);
+  const seen = new Set<string>([positionKey(start)]);
+  const parent = new Map<string, string>();
+  const positions = new Map<string, Position>([[positionKey(start), start]]);
 
   while (queue.length > 0) {
     const current = queue.shift()!;
-    if (current.pos.row === goalRow) return current.distance;
+    if (current.pos.row === goalRow) {
+      const path: Position[] = [];
+      let key = positionKey(current.pos);
+      while (positions.has(key)) {
+        path.unshift(positions.get(key)!);
+        const previous = parent.get(key);
+        if (!previous) break;
+        key = previous;
+      }
+      return path;
+    }
 
     const nextGame = cloneGame(game);
     nextGame.players[playerId].position = current.pos;
     for (const move of getLegalPawnMoves(nextGame, playerId)) {
-      const key = `${move.row},${move.col}`;
+      const key = positionKey(move);
       if (seen.has(key)) continue;
       seen.add(key);
+      parent.set(key, positionKey(current.pos));
+      positions.set(key, move);
       queue.push({ pos: move, distance: current.distance + 1 });
     }
   }
 
-  return 99;
+  return null;
+}
+
+function recentAiPositions(game: GameState): Position[] {
+  return (game.moveHistory ?? [])
+    .filter((move) => move.playerId === AI_PLAYER_ID && move.kind === "pawn" && move.to)
+    .slice(-8)
+    .map((move) => move.to!);
+}
+
+function visitPenalty(game: GameState, move: Position, difficulty: AiDifficulty): number {
+  const recent = recentAiPositions(game);
+  let repeatIndex = -1;
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    if (samePosition(recent[index], move)) {
+      repeatIndex = index;
+      break;
+    }
+  }
+  if (repeatIndex < 0) return 0;
+  const age = recent.length - repeatIndex;
+  const multiplier = difficulty === "easy" ? 0.3 : difficulty === "normal" ? 0.75 : difficulty === "hard" ? 1.35 : 2.25;
+  return (9 - Math.min(age, 8)) * multiplier;
+}
+
+function mobilityScore(game: GameState, playerId: PlayerId): number {
+  return getLegalPawnMoves(game, playerId).length;
 }
 
 function aiMoveScore(room: NonNullable<ReturnType<typeof getRoom>>, move: Position, difficulty: AiDifficulty): number {
-  const goalRow = goalRowFor(AI_PLAYER_ID, room.game);
-  const goalDistance = Math.abs(goalRow - move.row);
-  const centerBias = Math.abs(Math.floor(room.game.boardSize / 2) - move.col) * 0.08;
-  const humanDistance = distanceToGoal(room.game, HUMAN_PLAYER_ID);
-  const randomness = difficulty === "easy" ? 1.6 : difficulty === "normal" ? 0.8 : difficulty === "hard" ? 0.28 : 0.04;
-  return goalDistance + centerBias - humanDistance * 0.05 + Math.random() * randomness;
+  const game = room.game;
+  const testGame = cloneGame(game);
+  testGame.players[AI_PLAYER_ID].position = move;
+
+  const aiPath = shortestPathToGoal(testGame, AI_PLAYER_ID);
+  const humanPath = shortestPathToGoal(testGame, HUMAN_PLAYER_ID);
+  const aiDistance = aiPath ? aiPath.length - 1 : 99;
+  const humanDistance = humanPath ? humanPath.length - 1 : 99;
+  const currentAiDistance = distanceToGoal(game, AI_PLAYER_ID);
+  const currentHumanDistance = distanceToGoal(game, HUMAN_PLAYER_ID);
+  const forwardProgress = currentAiDistance - aiDistance;
+  const raceScore = humanDistance - aiDistance;
+  const centerBias = Math.abs(Math.floor(game.boardSize / 2) - move.col);
+  const mobility = mobilityScore(testGame, AI_PLAYER_ID);
+  const cornerPenalty = (move.col === 0 || move.col === game.boardSize - 1) && move.row !== goalRowFor(AI_PLAYER_ID, game) ? 1.2 : 0;
+  const loopPenalty = visitPenalty(game, move, difficulty);
+  const pathFollowBonus = aiPath?.[1] && samePosition(aiPath[1], move) ? 1.4 : 0;
+  const jumpPressure = currentHumanDistance <= currentAiDistance ? 0.45 : 0.25;
+  const randomness = difficulty === "easy" ? 1.1 : difficulty === "normal" ? 0.45 : difficulty === "hard" ? 0.12 : 0.01;
+
+  return (
+    aiDistance * 3.2
+    - raceScore * jumpPressure
+    - forwardProgress * 1.8
+    - pathFollowBonus
+    - mobility * 0.16
+    + centerBias * 0.18
+    + cornerPenalty
+    + loopPenalty
+    + Math.random() * randomness
+  );
 }
 
 function wallCandidates(game: GameState): Wall[] {
@@ -173,18 +251,21 @@ function wallCandidates(game: GameState): Wall[] {
   return walls;
 }
 
-function bestAiWall(room: NonNullable<ReturnType<typeof getRoom>>, difficulty: AiDifficulty): Wall | null {
+function bestAiWall(room: NonNullable<ReturnType<typeof getRoom>>, difficulty: AiDifficulty): { wall: Wall; score: number } | null {
   if (room.game.players[AI_PLAYER_ID].wallsLeft <= 0) return null;
 
   const currentHumanDistance = distanceToGoal(room.game, HUMAN_PLAYER_ID);
   const currentAiDistance = distanceToGoal(room.game, AI_PLAYER_ID);
   const ai = room.game.players[AI_PLAYER_ID].position;
   const human = room.game.players[HUMAN_PLAYER_ID].position;
-  const nearbyOnly = difficulty !== "pro";
+  const moveCount = room.game.moveHistory?.length ?? 0;
+  const wallsUsed = 10 - room.game.players[AI_PLAYER_ID].wallsLeft;
+  const nearbyOnly = difficulty === "easy" || difficulty === "normal";
   let best: { wall: Wall; score: number } | null = null;
 
   for (const wall of wallCandidates(room.game)) {
-    if (nearbyOnly && Math.abs(wall.row - human.row) + Math.abs(wall.col - human.col) > 4) continue;
+    const wallHumanDistance = Math.abs(wall.row - human.row) + Math.abs(wall.col - human.col);
+    if (nearbyOnly && wallHumanDistance > 4) continue;
 
     const testGame = cloneGame(room.game);
     const result = applyWallPlacement(testGame, { roomId: room.id, playerId: AI_PLAYER_ID, wall });
@@ -194,23 +275,53 @@ function bestAiWall(room: NonNullable<ReturnType<typeof getRoom>>, difficulty: A
     const aiDistance = distanceToGoal(testGame, AI_PLAYER_ID);
     const blocksHuman = humanDistance - currentHumanDistance;
     const hurtsAi = aiDistance - currentAiDistance;
-    const nearHuman = Math.max(0, 5 - (Math.abs(wall.row - human.row) + Math.abs(wall.col - human.col))) * 0.18;
-    const shieldsAi = Math.max(0, 4 - (Math.abs(wall.row - ai.row) + Math.abs(wall.col - ai.col))) * 0.08;
-    const precision = difficulty === "pro" ? 0.02 : difficulty === "hard" ? 0.18 : 0.5;
-    const score = blocksHuman * 2.4 - hurtsAi * 1.45 + nearHuman - shieldsAi + Math.random() * precision;
+    if (blocksHuman <= 0 && difficulty !== "pro") continue;
+
+    const nearHuman = Math.max(0, 5 - wallHumanDistance) * 0.16;
+    const nearAi = Math.max(0, 4 - (Math.abs(wall.row - ai.row) + Math.abs(wall.col - ai.col))) * 0.1;
+    const raceUrgency = currentHumanDistance <= currentAiDistance ? 1.15 : currentHumanDistance <= currentAiDistance + 2 ? 0.55 : -0.25;
+    const earlyWallPenalty = moveCount < 6 ? 1.15 : moveCount < 12 ? 0.45 : 0;
+    const spamPenalty = Math.max(0, wallsUsed - Math.floor(moveCount / 4)) * 0.38;
+    const precision = difficulty === "pro" ? 0.01 : difficulty === "hard" ? 0.08 : difficulty === "normal" ? 0.22 : 0.55;
+    const score =
+      blocksHuman * (difficulty === "pro" ? 3.45 : difficulty === "hard" ? 3.0 : 2.35)
+      - hurtsAi * (difficulty === "pro" ? 2.2 : 1.65)
+      + raceUrgency
+      + nearHuman
+      - nearAi
+      - earlyWallPenalty
+      - spamPenalty
+      + Math.random() * precision;
 
     if (!best || score > best.score) best = { wall, score };
   }
 
-  const minimumScore = difficulty === "pro" ? 0.35 : difficulty === "hard" ? 0.65 : 1.1;
-  return best && best.score >= minimumScore ? best.wall : null;
+  const minimumScore = difficulty === "pro" ? 1.15 : difficulty === "hard" ? 1.35 : difficulty === "normal" ? 1.7 : 2.4;
+  return best && best.score >= minimumScore ? best : null;
 }
 
-function aiWallChance(difficulty: AiDifficulty): number {
-  if (difficulty === "easy") return 0.08;
-  if (difficulty === "normal") return 0.34;
-  if (difficulty === "hard") return 0.62;
-  return 0.9;
+function shouldUseWall(room: NonNullable<ReturnType<typeof getRoom>>, difficulty: AiDifficulty, bestWall: { wall: Wall; score: number } | null, bestMoveScore: number): boolean {
+  if (!bestWall) return false;
+  const moveCount = room.game.moveHistory?.length ?? 0;
+  const aiDistance = distanceToGoal(room.game, AI_PLAYER_ID);
+  const humanDistance = distanceToGoal(room.game, HUMAN_PLAYER_ID);
+  const urgent = humanDistance <= aiDistance + 1 || humanDistance <= 4;
+  const openingDiscipline = difficulty === "pro" || difficulty === "hard" ? moveCount >= 8 || urgent : moveCount >= 12 || urgent;
+  if (!openingDiscipline) return false;
+
+  const difficultyBias = difficulty === "easy" ? 2.4 : difficulty === "normal" ? 1.55 : difficulty === "hard" ? 1.05 : 0.85;
+  const moveIsWeak = bestMoveScore > 8.5 || humanDistance < aiDistance;
+  return bestWall.score >= difficultyBias || (moveIsWeak && bestWall.score > difficultyBias * 0.7);
+}
+
+function chooseAiMove(room: NonNullable<ReturnType<typeof getRoom>>, difficulty: AiDifficulty, legalMoves: Position[]): Position | null {
+  const scored = legalMoves
+    .map((move) => ({ move, score: aiMoveScore(room, move, difficulty) }))
+    .sort((a, b) => a.score - b.score);
+
+  if (difficulty === "easy" && scored.length > 1 && Math.random() < 0.25) return scored[1].move;
+  if (difficulty === "normal" && scored.length > 1 && Math.random() < 0.1) return scored[1].move;
+  return scored[0]?.move ?? null;
 }
 
 function scheduleAiTurn(room: NonNullable<ReturnType<typeof getRoom>>): void {
@@ -229,9 +340,10 @@ function scheduleAiTurn(room: NonNullable<ReturnType<typeof getRoom>>): void {
     const difficulty = latestRoom.aiDifficulty ?? latestRoom.game.aiDifficulty ?? "normal";
     const legalMoves = getLegalPawnMoves(latestRoom.game, AI_PLAYER_ID);
     const winningMove = legalMoves.find((move) => move.row === goalRowFor(AI_PLAYER_ID, latestRoom.game));
-    const shouldTryWall = !winningMove && Math.random() < aiWallChance(difficulty);
-    const nextWall = shouldTryWall ? bestAiWall(latestRoom, difficulty) : null;
-    const nextMove = winningMove ?? legalMoves.sort((a, b) => aiMoveScore(latestRoom, a, difficulty) - aiMoveScore(latestRoom, b, difficulty))[0];
+    const nextMove = winningMove ?? chooseAiMove(latestRoom, difficulty, legalMoves);
+    const bestMoveScore = nextMove ? aiMoveScore(latestRoom, nextMove, difficulty) : 99;
+    const wallChoice = !winningMove ? bestAiWall(latestRoom, difficulty) : null;
+    const nextWall = shouldUseWall(latestRoom, difficulty, wallChoice, bestMoveScore) ? wallChoice?.wall : null;
 
     if (nextWall) {
       const result = applyWallPlacement(latestRoom.game, { roomId: latestRoom.id, playerId: AI_PLAYER_ID, wall: nextWall });
