@@ -4797,6 +4797,49 @@ button.leaderboard-row:hover {
   font-size: 13px;
 }
 
+.home-v2 .home-hero-card,
+.home-v2 .profile-card-v2,
+.home-profile-strip,
+.side-leaderboard-card,
+.home-v2 .mode-status-panel,
+.home-v2 .friend-room-panel,
+.home-modal,
+.my-rank-card {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 211, 106, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(27, 31, 42, 0.38), rgba(13, 16, 22, 0.32)) !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.home-v2 .home-hero-card::before {
+  display: none;
+}
+
+.home-v2 .home-arena-3d,
+.home-v2 .play-mode-card,
+.leaderboard-strip,
+.home-profile-history .match-history-row,
+.home-v2 .profile-stats span,
+.profile-stats span,
+.recent-form,
+.match-history-card,
+.home-v2 .auth-tabs {
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.home-v2 .play-mode-card.primary-mode {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(255, 211, 106, 0.11), transparent 36%),
+    rgba(255, 255, 255, 0.035) !important;
+}
+
+.home-v2 .play-mode-card:hover,
+.home-profile-history .match-history-row:hover {
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
 @media (max-width: 900px) {
   .home-v2 .home-shell {
     grid-template-columns: 1fr;
