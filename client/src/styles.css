@@ -3079,6 +3079,7 @@ body::before {
 /* Compact home refresh */
 .home.home-v2 {
   min-height: 100vh;
+  --home-main-card-height: clamp(460px, calc(100vh - 320px), 580px);
   padding: clamp(10px, 1.6vw, 20px);
   background:
     radial-gradient(circle at 18% 12%, rgba(53, 232, 214, 0.14), transparent 30%),
@@ -3097,7 +3098,7 @@ body::before {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   gap: clamp(10px, 1.4vw, 16px);
-  align-items: start;
+  align-items: stretch;
 }
 
 .home-profile-strip {
@@ -3106,10 +3107,12 @@ body::before {
 }
 
 .home-v2 .home-hero-card {
+  height: var(--home-main-card-height);
   order: 1;
 }
 
 .home-v2 .home-side {
+  height: var(--home-main-card-height);
   order: 2;
 }
 
@@ -3565,7 +3568,8 @@ body::before {
   gap: 10px;
   position: sticky;
   top: 20px;
-  align-self: start;
+  align-self: stretch;
+  min-height: 0;
 }
 
 .home-v2 .profile-card-v2 {
@@ -3573,6 +3577,10 @@ body::before {
 }
 
 .side-leaderboard-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 13px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.11);
@@ -4325,8 +4333,11 @@ body::before {
 }
 
 .side-leaderboard-list {
-  max-height: min(42vh, 380px);
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   display: grid;
+  align-content: start;
   gap: 5px;
   overflow: auto;
   padding-right: 4px;
@@ -4707,8 +4718,22 @@ button.leaderboard-row:hover {
     grid-template-columns: 1fr;
   }
 
+  .home-v2 .home-hero-card,
+  .home-v2 .home-side {
+    height: auto;
+  }
+
   .home-v2 .home-side {
     position: static;
+  }
+
+  .side-leaderboard-card {
+    height: auto;
+    max-height: 520px;
+  }
+
+  .side-leaderboard-list {
+    max-height: 360px;
   }
 }
 
