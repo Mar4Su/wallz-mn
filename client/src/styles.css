@@ -3219,8 +3219,9 @@ body::before {
 
 .home-topbar {
   width: 100%;
-  position: relative;
-  z-index: 4;
+  position: sticky;
+  top: 0;
+  z-index: 60;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3229,10 +3230,11 @@ body::before {
   padding: 10px clamp(14px, 2vw, 20px);
   border-bottom: 1px solid rgba(106, 255, 239, 0.22);
   background:
-    linear-gradient(90deg, rgba(20, 41, 34, 0.58), rgba(22, 14, 14, 0.5)),
-    rgba(7, 7, 5, 0.38);
-  backdrop-filter: blur(10px) saturate(135%);
-  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.24);
+    linear-gradient(90deg, rgba(20, 41, 34, 0.46), rgba(22, 14, 14, 0.42)),
+    rgba(7, 7, 5, 0.3);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: blur(14px) saturate(135%);
+  box-shadow: 0 18px 58px rgba(0, 0, 0, 0.22);
 }
 
 .home-brand {
