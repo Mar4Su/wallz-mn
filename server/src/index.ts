@@ -773,6 +773,23 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.sockets[payload.playerId] !== socket.id) {
+      socket.emit("rematch-declined", { message: "You are not seated in this room." });
+      return;
+    }
+
+    if (room.game.matchType === "ai") {
+      const nextRoom = createRematchRoom(room);
+      resetTurnClock(nextRoom);
+      socket.leave(room.id);
+      socket.join(nextRoom.id);
+      socket.emit("rematch-started", { roomId: nextRoom.id, playerId: payload.playerId, game: nextRoom.game });
+      io.to(nextRoom.id).emit("game-updated", nextRoom.game);
+      scheduleTurnTimeout(nextRoom);
+      scheduleAiTurn(nextRoom);
+      return;
+    }
+
     const opponent = otherPlayer(payload.playerId);
     const opponentSocketId = room.sockets[opponent];
     if (!opponentSocketId) {
@@ -816,6 +833,8 @@ io.on("connection", (socket) => {
 
     socket.emit("rematch-waiting", { expiresAt });
     io.to(opponentSocketId).emit("rematch-requested", {
+      roomId: room.id,
+      playerId: opponent,
       fromPlayerId: payload.playerId,
       fromName: room.game.players[payload.playerId].name,
       expiresAt,

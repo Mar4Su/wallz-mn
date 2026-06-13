@@ -280,8 +280,11 @@ export function createRematchRoom(oldRoom: Room): Room {
     id,
     game: createGame(id, oldRoom.game.players, oldRoom.game.timeControl),
     sockets: { ...oldRoom.sockets },
+    aiDifficulty: oldRoom.aiDifficulty,
   };
   nextRoom.game.status = "playing";
+  nextRoom.game.matchType = oldRoom.game.matchType;
+  nextRoom.game.aiDifficulty = oldRoom.game.aiDifficulty;
   rooms.delete(oldRoom.id);
   rooms.set(id, nextRoom);
   return nextRoom;

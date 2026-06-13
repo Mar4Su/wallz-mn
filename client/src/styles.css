@@ -2330,6 +2330,90 @@ body {
   pointer-events: none;
 }
 
+.global-rematch-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(2, 4, 7, 0.34);
+  backdrop-filter: blur(8px) saturate(120%);
+  animation: resultFadeIn 160ms ease-out both;
+}
+
+.global-rematch-card {
+  width: min(440px, 100%);
+  padding: 22px;
+  border-radius: 20px;
+  border: 1px solid rgba(106, 255, 239, 0.24);
+  color: #fff7dc;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 211, 106, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(27, 31, 42, 0.42), rgba(13, 16, 22, 0.36));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38), 0 0 50px rgba(53, 232, 214, 0.12);
+  backdrop-filter: blur(14px) saturate(130%);
+  animation: resultPop 190ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+.global-rematch-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: #35e8d6;
+  font-size: 11px;
+  font-weight: 1000;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.global-rematch-card h2 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1;
+}
+
+.global-rematch-card p {
+  margin: 12px 0 18px;
+  color: rgba(255, 247, 220, 0.68);
+  font-weight: 800;
+}
+
+.global-rematch-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.global-rematch-actions button {
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 245, 209, 0.13);
+  color: #10131a;
+  background: linear-gradient(135deg, #35e8d6, #fff0a4);
+  font-weight: 1000;
+  cursor: pointer;
+  transition:
+    transform 170ms cubic-bezier(0.2, 0.9, 0.25, 1),
+    filter 170ms ease,
+    box-shadow 170ms ease;
+}
+
+.global-rematch-actions button:last-child {
+  color: #fff7dc;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.global-rematch-actions button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow: 0 16px 38px rgba(53, 232, 214, 0.16);
+}
+
+.global-rematch-actions button:active {
+  transform: translateY(0) scale(0.975);
+}
+
 @keyframes game-toast-in {
   from {
     opacity: 0;
@@ -2478,7 +2562,7 @@ body {
 /* Final product polish layer */
 :root {
   --ink: #080a0d;
-  --panel: rgba(13, 17, 21, 0.82);
+  --panel: rgba(13, 17, 21, 0.36);
   --panel-solid: #121820;
   --line: rgba(230, 238, 255, 0.12);
   --line-strong: rgba(230, 238, 255, 0.22);
@@ -2539,12 +2623,12 @@ body::before {
 .waiting-card {
   border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 34%),
-    var(--panel);
+    radial-gradient(circle at 20% 0%, rgba(255, 211, 106, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(27, 31, 42, 0.38), rgba(13, 16, 22, 0.32));
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(10px) saturate(125%);
 }
 
 .home-hero-card {
@@ -3121,10 +3205,10 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.022)),
-    rgba(11, 10, 10, 0.28);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(9px) saturate(120%);
+    radial-gradient(circle at 20% 0%, rgba(255, 211, 106, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(27, 31, 42, 0.38), rgba(13, 16, 22, 0.32));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px) saturate(125%);
 }
 
 .home-v2 .home-hero-card {

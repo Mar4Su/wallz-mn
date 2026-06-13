@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ClientPlayerProfile, GameState, PlayerId } from "../../shared/types";
 import { socket } from "./socket";
 import Home from "./pages/Home";
@@ -9,6 +9,14 @@ import { useAuth } from "./auth/AuthContext";
 type SavedRoomSeat = {
   roomId: string;
   playerId: PlayerId;
+};
+
+type GlobalRematchRequest = {
+  roomId: string;
+  playerId: PlayerId;
+  fromPlayerId: PlayerId;
+  fromName: string;
+  expiresAt: number;
 };
 
 const ACTIVE_ROOM_KEY = "wallz.activeRoom";
@@ -48,7 +56,10 @@ export default function App() {
   const [game, setGame] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [path, setPath] = useState(window.location.pathname);
+  const [globalRematch, setGlobalRematch] = useState<GlobalRematchRequest | null>(null);
+  const [globalRematchNow, setGlobalRematchNow] = useState(Date.now());
   const attemptedRoomRef = useRef<string | null>(null);
+  const activeRoomRef = useRef<string | null>(null);
 
   function playerProfilePayload(): ClientPlayerProfile | undefined {
     if (!currentUser || !profile) return undefined;
@@ -79,6 +90,18 @@ export default function App() {
     setPath("/profile");
   }
 
+  function acceptGlobalRematch() {
+    if (!globalRematch) return;
+    socket.emit("accept-rematch", { roomId: globalRematch.roomId, playerId: globalRematch.playerId });
+    setGlobalRematch(null);
+  }
+
+  function declineGlobalRematch() {
+    if (!globalRematch) return;
+    socket.emit("decline-rematch", { roomId: globalRematch.roomId, playerId: globalRematch.playerId });
+    setGlobalRematch(null);
+  }
+
   useEffect(() => {
     function onPopState() {
       setPath(window.location.pathname);
@@ -86,6 +109,10 @@ export default function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    activeRoomRef.current = roomId;
+  }, [roomId]);
 
   useEffect(() => {
     socket.on("room-created", ({ roomId, playerId, game }) => {
@@ -107,12 +134,19 @@ export default function App() {
     });
 
     socket.on("rematch-started", ({ roomId, playerId, game }) => {
+      setGlobalRematch(null);
       saveRoomSeat(roomId, playerId);
       setRoomPath(roomId);
       setRoomId(roomId);
       setPlayerId(playerId);
       setGame(game);
       setError(null);
+    });
+
+    socket.on("rematch-requested", (payload: GlobalRematchRequest) => {
+      if (activeRoomRef.current) return;
+      setGlobalRematch(payload);
+      setGlobalRematchNow(Date.now());
     });
 
     socket.on("game-updated", (nextGame: GameState) => {
@@ -140,6 +174,7 @@ export default function App() {
       socket.off("room-created");
       socket.off("game-started");
       socket.off("rematch-started");
+      socket.off("rematch-requested");
       socket.off("game-updated");
       socket.off("invalid-move");
       socket.off("game-over");
@@ -147,6 +182,17 @@ export default function App() {
       socket.off("match-abandoned");
     };
   }, []);
+
+  useEffect(() => {
+    if (!globalRematch) return;
+    const timer = window.setInterval(() => setGlobalRematchNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [globalRematch]);
+
+  useEffect(() => {
+    if (!globalRematch) return;
+    if (globalRematch.expiresAt <= globalRematchNow) setGlobalRematch(null);
+  }, [globalRematch, globalRematchNow]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -177,12 +223,42 @@ export default function App() {
     socket.emit("join-room", { roomId: pathRoomId, profile: playerProfilePayload() });
   }, [authReady, currentUser, profile, roomId]);
 
+  const rematchSecondsLeft = globalRematch
+    ? Math.max(0, Math.ceil((globalRematch.expiresAt - globalRematchNow) / 1000))
+    : 0;
+
+  let page: ReactNode;
   if (!roomId || !playerId || !game) {
-    if (path === "/profile") return <ProfilePage mode="own" onGoHome={goHome} />;
-    const publicUserId = userIdFromPath();
-    if (publicUserId) return <ProfilePage mode="public" identifier={publicUserId} onGoHome={goHome} />;
-    return <Home error={error} onGoProfile={goProfile} />;
+    if (path === "/profile") {
+      page = <ProfilePage mode="own" onGoHome={goHome} />;
+    } else {
+      const publicUserId = userIdFromPath();
+      if (publicUserId) {
+        page = <ProfilePage mode="public" identifier={publicUserId} onGoHome={goHome} />;
+      } else {
+        page = <Home error={error} onGoProfile={goProfile} />;
+      }
+    }
+  } else {
+    page = <Game roomId={roomId} playerId={playerId} game={game} error={error} onGoHome={goHome} />;
   }
 
-  return <Game roomId={roomId} playerId={playerId} game={game} error={error} onGoHome={goHome} />;
+  return (
+    <>
+      {page}
+      {globalRematch ? (
+        <div className="global-rematch-backdrop" role="presentation">
+          <section className="global-rematch-card" role="dialog" aria-modal="true" aria-label="Rematch request">
+            <span>Rematch request</span>
+            <h2>{globalRematch.fromName} wants another game</h2>
+            <p>Accept within {rematchSecondsLeft}s or the request expires.</p>
+            <div className="global-rematch-actions">
+              <button type="button" onClick={acceptGlobalRematch}>Accept</button>
+              <button type="button" onClick={declineGlobalRematch}>Cancel</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </>
+  );
 }
