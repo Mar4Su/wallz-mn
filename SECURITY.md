@@ -15,6 +15,8 @@ The Node/Socket.IO backend is the `hana-server` Cloud Run service in
 - Ranked results must match the authoritative game winner in server memory.
 - Firestore presence access is restricted to match participants. Public ID
   collection listing is denied, and initial reservations must accompany a profile.
+- The unused Firestore presence heartbeat was removed; multiplayer presence uses
+  Socket.IO, avoiding a database write every seven seconds per player.
 - Environment files, private keys and service account files are excluded from Git
   and backend build uploads. Vite configuration is public once bundled; never put
   an Admin SDK credential or other secret in a `VITE_` variable.

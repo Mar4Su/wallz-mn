@@ -5,7 +5,6 @@ import { t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { animate, stagger } from "animejs";
 import { useAuth } from "../auth/AuthContext";
-import { updateMatchPresence } from "../auth/matchPresence";
 import { finalizeRanked } from "../rankedApi";
 import type { RankedFinalizeResponse } from "../rankedApi";
 import { profilePictureUrl } from "../profilePictures";
@@ -375,20 +374,6 @@ export default function Game({ roomId, playerId, game, error, onGoHome }: Props)
   useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight });
   }, [chatMessages.length]);
-
-  useEffect(() => {
-    if (!currentUser || game.status !== "playing") return;
-
-    void updateMatchPresence(roomId, currentUser, true);
-    const timer = window.setInterval(() => {
-      void updateMatchPresence(roomId, currentUser, true);
-    }, 7_000);
-
-    return () => {
-      window.clearInterval(timer);
-      void updateMatchPresence(roomId, currentUser, false);
-    };
-  }, [currentUser, game.status, roomId]);
 
   useEffect(() => {
     if (!currentUser || game.status !== "finished" || game.matchType !== "ranked" || !game.matchId || !game.winner || rankedFinalizeRef.current === game.matchId) return;
