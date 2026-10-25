@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import {
@@ -383,13 +385,20 @@ const allowedOrigins = Array.from(new Set([
   "http://localhost:5173",
   "https://buruuzam.web.app",
   "https://buruuzam.firebaseapp.com",
+  "https://hana.marasu.tech",
   CLIENT_URL
 ]));
 
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+app.use(helmet());
+app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
 app.use(cors({
   origin: allowedOrigins
 }));
-app.use(express.json());
+app.use(express.json({ limit: "16kb" }));
+app.use("/ranked/enqueue", rateLimit({ windowMs: 60_000, limit: 10, legacyHeaders: false }));
+app.use("/me/delete", rateLimit({ windowMs: 60_000, limit: 3, legacyHeaders: false }));
 
 app.get("/", (_req, res) => res.send("Wallz MN backend is running"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -489,7 +498,15 @@ app.post("/ranked/finalize", async (req, res) => {
     const decoded = await verifyBearerToken(req.headers.authorization);
     const { matchId, winnerUid, loserUid, moveHistory } = req.body as { matchId?: string; winnerUid?: string; loserUid?: string; moveHistory?: unknown };
     if (!matchId || !winnerUid || !loserUid) throw new Error("Missing ranked result.");
-    res.json(await finalizeRankedMatch(decoded, matchId, winnerUid, loserUid, { moveHistory: Array.isArray(moveHistory) ? moveHistory : [] }));
+    const room = getRoom(matchId);
+    const winner = room?.game.winner;
+    if (!room || room.game.matchType !== "ranked" || !winner
+      || room.game.players[winner].uid !== winnerUid
+      || room.game.players[otherPlayer(winner)].uid !== loserUid) {
+      res.status(409).json({ error: "The server has not confirmed this result." });
+      return;
+    }
+    res.json(await finalizeRankedMatch(decoded, matchId, winnerUid, loserUid, { moveHistory: room.game.moveHistory ?? [] }));
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "Could not finalize ranked match." });
   }
@@ -497,6 +514,8 @@ app.post("/ranked/finalize", async (req, res) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
+  maxHttpBufferSize: 16 * 1024,
+  allowRequest: (req, callback) => callback(null, !!req.headers.origin && allowedOrigins.includes(req.headers.origin)),
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
@@ -504,6 +523,28 @@ const io = new Server(httpServer, {
 });
 
 const casualQueue = new Map<string, CasualQueueEntry>();
+// Apply limits to Engine.IO too: its traffic bypasses Express middleware.
+const socketRequests = new Map<string, { count: number; expires: number }>();
+const socketRequestCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of socketRequests) if (entry.expires <= now) socketRequests.delete(ip);
+}, 60_000);
+socketRequestCleanup.unref();
+io.engine.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Cloud Run supplies the trusted final forwarded hop, as with Express trust proxy=1.
+  const forwarded = req.headers["x-forwarded-for"];
+  const ip = (typeof forwarded === "string" ? forwarded.split(",").at(-1)?.trim() : undefined)
+    || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  let entry = socketRequests.get(ip);
+  if (!entry || entry.expires <= now) {
+    if (socketRequests.size >= 10_000 && !entry) { res.writeHead(429); res.end(); return; }
+    entry = { count: 0, expires: now + 60_000 };
+    socketRequests.set(ip, entry);
+  }
+  if (++entry.count > 300) { res.writeHead(429); res.end(); return; }
+  next();
+});
 
 function emitPresenceCount(): void {
   io.emit("presence-count", {
@@ -513,6 +554,40 @@ function emitPresenceCount(): void {
 }
 
 io.on("connection", (socket) => {
+  if (io.engine.clientsCount > 200) { socket.disconnect(true); return; }
+  let eventWindow = Date.now();
+  let eventCount = 0;
+  let lastRoomCreation = 0;
+  socket.use(([event, payload], next) => {
+    const now = Date.now();
+    if (now - eventWindow >= 10_000) { eventWindow = now; eventCount = 0; }
+    if (++eventCount > 40) { socket.disconnect(true); return; }
+    if (payload === null || (payload !== undefined && (typeof payload !== "object" || Array.isArray(payload)))) {
+      next(new Error("Invalid payload")); return;
+    }
+    const data = payload ?? {};
+    const roomEvents = ["join-room", "rejoin-room", "move-pawn", "place-wall", "give-up", "send-chat-message", "request-rematch", "accept-rematch", "decline-rematch"];
+    const invalidRoom = roomEvents.includes(event) && (typeof data.roomId !== "string" || data.roomId.length > 128);
+    const invalidPlayer = ["move-pawn", "place-wall", "give-up", "rejoin-room", "request-rematch", "accept-rematch", "decline-rematch"].includes(event) && !["P1", "P2"].includes(data.playerId);
+    const position = event === "move-pawn" ? data.to : event === "place-wall" ? data.wall : null;
+    const invalidPosition = ["move-pawn", "place-wall"].includes(event) && (!position || !Number.isInteger(position.row) || !Number.isInteger(position.col) || position.row < 0 || position.row > 8 || position.col < 0 || position.col > 8);
+    if (invalidRoom || invalidPlayer || invalidPosition
+      || (event === "place-wall" && !["H", "V"].includes(data.wall?.orientation))
+      || (event === "send-chat-message" && (typeof data.text !== "string" || !["P1", "P2"].includes(data.playerId)))
+      || (event === "join-ranked-match" && (typeof data.matchId !== "string" || typeof data.idToken !== "string"))) {
+      next(new Error("Invalid payload")); return;
+    }
+    if (["create-room", "create-ai-room", "casual-search"].includes(event)) {
+      const currentRoom = findSocketRoom(socket.id);
+      if (now - lastRoomCreation < 5000 || (currentRoom && currentRoom.room.game.status !== "finished")) {
+        socket.emit("invalid-move", { message: "Leave your current room and wait a few seconds before starting another game." });
+        return;
+      }
+      lastRoomCreation = now;
+      if (currentRoom) removeSocketFromRooms(socket.id);
+    }
+    next();
+  });
   console.log("connected", socket.id);
   emitPresenceCount();
 

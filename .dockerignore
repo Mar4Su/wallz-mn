@@ -8,3 +8,8 @@ server/.env
 server/serviceAccountKey.json
 server/*firebase-adminsdk*.json
 *.log
+**/.env*
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+**/*.pem
+**/*.key

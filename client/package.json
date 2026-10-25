@@ -23,5 +23,8 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "typescript": "latest"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.4"
   }
 }

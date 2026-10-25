@@ -36,6 +36,7 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.publicId is string
         && request.resource.data.publicId.matches('^[a-z0-9_-]{3,16}$')
+        && getAfter(/databases/$(database)/documents/publicIds/$(request.resource.data.publicId)).data.uid == uid
         && request.resource.data.elo == 1000
         && request.resource.data.wins == 0
         && request.resource.data.losses == 0
@@ -64,21 +65,31 @@ service cloud.firestore {
     }
 
     match /publicIds/{publicId} {
-      allow read: if request.auth != null;
+      allow get: if request.auth != null;
+      allow list: if false;
       allow create: if request.auth != null
         && !exists(/databases/$(database)/documents/publicIds/$(publicId))
         && request.resource.data.keys().hasOnly(publicIdCreateFields())
         && request.resource.data.keys().hasAll(publicIdCreateFields())
         && request.resource.data.uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.publicId == publicId
         && request.resource.data.publicId == publicId
         && publicId.matches('^[a-z0-9_-]{3,16}$');
       allow update, delete: if false;
     }
 
     match /matches/{matchId}/presence/{uid} {
-      allow read: if request.auth != null;
+      function isParticipant() {
+        return request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.playerUids;
+      }
+      allow read: if isParticipant();
       allow create, update: if signedInAs(uid)
+        && isParticipant()
+        && request.resource.data.keys().hasOnly(["uid", "connected", "lastSeenAt"])
         && request.resource.data.uid == uid
+        && request.resource.data.lastSeenAt == request.time
         && request.resource.data.connected is bool;
       allow delete: if false;
     }

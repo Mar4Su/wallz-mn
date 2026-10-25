@@ -1,116 +1,44 @@
-# Wall-and-Pawn Mongolia MVP Template
+# Hana — wall-and-pawn multiplayer
 
-A GitHub starter template for a Mongolian online wall-and-pawn racing game.
+Mongolian board game with private rooms, casual matchmaking, AI opponents,
+Firebase sign-in, ranked games, profiles and match history.
 
-> Important: This is an original project template. Do not copy Wallz.gg branding, logo, UI, text, animations, or source code.
+Production: https://hana.marasu.tech
 
-## MVP Features
+## Development
 
-- 9x9 board
-- 2 players: P1 and P2
-- Private room code
-- Real-time multiplayer using Socket.IO
-- Pawn movement validation
-- Wall placement validation
-- BFS path check so players can never be fully blocked
-- Mongolian UI text
-- No login, no ranking, no database yet
+Use Node.js 24. Install dependencies with `npm ci` in both `client/` and `server/`.
+Copy each package's `.env.example` to its local environment file and fill in your
+configuration. Never put server credentials in client environment variables.
 
-## Project Structure
+Run `npm run dev` in each package in separate terminals. Vite serves the client
+at http://localhost:5173 and the backend listens on port 4000 by default.
 
-```txt
-wallz-mn-template/
-  client/      React + TypeScript frontend
-  server/      Node.js + TypeScript + Socket.IO backend
-  shared/      Shared game types and constants
+## Structure
+
+- `client/`: React, TypeScript, Firebase web SDK, Socket.IO client.
+- `server/`: Express, Socket.IO, Firebase Admin SDK, authoritative game logic.
+- `shared/`: game types, constants and time controls.
+- `firestore.rules`: browser database access rules.
+- `firebase.json`: Hosting build output, SPA routes and response headers.
+
+## Build and deploy
+
+Run `npm run build` in each package. Run `npm audit` in each package when updating
+lockfiles. Build the client with your ignored `client/.env.production` file;
+`VITE_SERVER_URL` must point to the Cloud Run backend.
+
+See [CLOUD_RUN_DEPLOY.md](CLOUD_RUN_DEPLOY.md) for backend deployment. After the
+client build, run from the repository root:
+
+```powershell
+firebase deploy --only hosting,firestore:rules --project buruuzam
 ```
 
-## Task Split
+The custom domain must be connected in Firebase Hosting and authorized in Firebase
+Auth. Keep Cloud Run at one instance while multiplayer state lives in memory.
+Deployments restart active games.
 
-### Person A: Backend + Game Logic
-
-Work mostly inside:
-
-```txt
-server/src/game/
-server/src/index.ts
-shared/
-```
-
-Main tasks:
-
-- Improve move validation
-- Improve wall validation
-- Add jump rules
-- Add disconnect handling
-- Add timer later
-
-### Person B: Frontend + UI + Deployment
-
-Work mostly inside:
-
-```txt
-client/src/
-```
-
-Main tasks:
-
-- Improve board design
-- Add wall placement preview
-- Add mobile layout
-- Add better Mongolian UI
-- Deploy frontend
-
-## How to Run
-
-Open two terminals.
-
-### 1. Start backend
-
-```bash
-cd server
-npm install
-npm run dev
-```
-
-Backend runs at:
-
-```txt
-http://localhost:4000
-```
-
-### 2. Start frontend
-
-```bash
-cd client
-npm install
-npm run dev
-```
-
-Frontend runs at:
-
-```txt
-http://localhost:5173
-```
-
-## How to Test Online Room Locally
-
-1. Open `http://localhost:5173` in one browser tab.
-2. Click **Өрөө үүсгэх**.
-3. Copy the room code.
-4. Open another tab or another browser.
-5. Paste the code and click **Өрөөнд нэгдэх**.
-6. Play.
-
-## Deploy Later
-
-Recommended simple deployment:
-
-- Frontend: Vercel
-- Backend: Render, Railway, Fly.io, or a VPS
-
-When deployed, update this in `client/.env`:
-
-```env
-VITE_SERVER_URL=https://your-backend-url.com
-```
+See [SECURITY.md](SECURITY.md) for abuse controls, secret handling, cost limitations
+and remaining App Check/billing configuration. Earlier `*_UPDATE.md` files are
+historical implementation notes.
